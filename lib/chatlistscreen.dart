@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:itl/api_service.dart';
+import 'package:itl/chat_screen.dart';
 
 // --- COLOR CONSTANTS ---
 const Color kPrimaryBlue = Color(0xFF007AFF);
@@ -8,8 +10,38 @@ const Color kSecondaryText = Color(0xFF8A8A8E);
 const Color kBackground = Color(0xFFF7F7F7);
 const Color kWhite = Colors.white;
 
-class ChatListScreen extends StatelessWidget {
+class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
+
+  @override
+  State<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends State<ChatListScreen> {
+  final ApiService _apiService = ApiService();
+  List<dynamic> _chatGroups = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchChatGroups();
+  }
+
+  Future<void> _fetchChatGroups() async {
+    try {
+      final groups = await _apiService.getChatGroups();
+      setState(() {
+        _chatGroups = groups;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      // Handle error
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,15 +53,12 @@ class ChatListScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: kPrimaryText),
           onPressed: () {
-            // TODO: Navigate back to the main app
+            Navigator.of(context).pop();
           },
         ),
         title: const Text(
           'Chats',
-          style: TextStyle(
-            color: kPrimaryText,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: kPrimaryText, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         actions: [
@@ -41,61 +70,39 @@ class ChatListScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView.separated(
-        itemCount: 4, // Example item count
-        separatorBuilder: (context, index) => const Divider(
-          height: 1,
-          thickness: 1,
-          color: kBackground, // Use a very light grey for the divider
-          indent: 80, // Indent to align with text, not avatar
-        ),
-        itemBuilder: (context, index) {
-          // --- DUMMY DATA ---
-          if (index == 0) {
-            return _GroupChatItem(
-              // Example of an unread group chat
-              groupName: 'Design Team',
-              lastMessageSender: 'Alex',
-              lastMessage: 'We need to finalize the mockups.',
-              time: '10:55 AM',
-              unreadCount: 3,
-              isUnread: true,
-              // Use a placeholder or a network image for the group icon
-              imageUrl: 'https://i.pravatar.cc/150?img=5',
-            );
-          }
-          if (index == 1) {
-            return _OneToOneChatItem(
-              // Example of a read 1-to-1 chat
-              name: 'Rohan Sharma',
-              lastMessage: 'Sounds good!',
-              time: 'Yesterday',
-              unreadCount: 0,
-              isUnread: false,
-              imageUrl: 'https://i.pravatar.cc/150?img=12',
-            );
-          }
-          if (index == 2) {
-            return _OneToOneChatItem(
-              // Example of a read chat with a photo
-                name: 'Maria Garcia',
-                lastMessage: '📷 Photo',
-                time: '2d ago',
-                unreadCount: 0,
-                isUnread: false,
-                imageUrl: 'https://i.pravatar.cc/150?img=32');
-          }
-          return _OneToOneChatItem(
-            // Example of an unread 1-to-1 chat
-            name: 'John Doe',
-            lastMessage: 'Hey, are you free for a call?',
-            time: '11:15 AM',
-            unreadCount: 1,
-            isUnread: true,
-            imageUrl: 'https://i.pravatar.cc/150?img=60',
-          );
-        },
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.separated(
+              itemCount: _chatGroups.length,
+              separatorBuilder: (context, index) => const Divider(
+                height: 1,
+                thickness: 1,
+                color: kBackground,
+                indent: 80,
+              ),
+              itemBuilder: (context, index) {
+                final group = _chatGroups[index];
+                return _GroupChatItem(
+                  groupName: group['name'],
+                  lastMessageSender: 'Admin', // Placeholder
+                  lastMessage: '...', // Placeholder
+                  time: '10:55 AM', // Placeholder
+                  unreadCount: 0, // Placeholder
+                  isUnread: false, // Placeholder
+                  imageUrl: 'https://i.pravatar.cc/150?img=5', // Placeholder
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => ChatScreen(
+                          groupId: group['id'],
+                          groupName: group['name'],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // TODO: Navigate to new chat screen
@@ -115,6 +122,7 @@ class _OneToOneChatItem extends StatelessWidget {
   final String time;
   final int unreadCount;
   final bool isUnread;
+  final VoidCallback onTap;
 
   const _OneToOneChatItem({
     required this.imageUrl,
@@ -123,23 +131,19 @@ class _OneToOneChatItem extends StatelessWidget {
     required this.time,
     required this.unreadCount,
     required this.isUnread,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        // TODO: Navigate to conversation screen
-      },
+      onTap: onTap,
       child: Container(
         color: isUnread ? kLightBlueVariant : kWhite,
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundImage: NetworkImage(imageUrl),
-            ),
+            CircleAvatar(radius: 28, backgroundImage: NetworkImage(imageUrl)),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -160,7 +164,9 @@ class _OneToOneChatItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isUnread
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       color: isUnread ? kPrimaryBlue : kSecondaryText,
                     ),
                   ),
@@ -219,6 +225,7 @@ class _GroupChatItem extends StatelessWidget {
   final String time;
   final int unreadCount;
   final bool isUnread;
+  final VoidCallback onTap;
 
   const _GroupChatItem({
     required this.imageUrl,
@@ -228,14 +235,13 @@ class _GroupChatItem extends StatelessWidget {
     required this.time,
     required this.unreadCount,
     required this.isUnread,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        // TODO: Navigate to conversation screen
-      },
+      onTap: onTap,
       child: Container(
         color: isUnread ? kLightBlueVariant : kWhite,
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -243,7 +249,9 @@ class _GroupChatItem extends StatelessWidget {
           children: [
             // Squircle Avatar for Groups
             ClipRRect(
-              borderRadius: BorderRadius.circular(16.0), // Creates the squircle shape
+              borderRadius: BorderRadius.circular(
+                16.0,
+              ), // Creates the squircle shape
               child: Image.network(
                 imageUrl,
                 width: 56,
@@ -277,13 +285,17 @@ class _GroupChatItem extends StatelessWidget {
                         TextSpan(
                           text: '$lastMessageSender: ',
                           style: TextStyle(
-                            fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                            fontWeight: isUnread
+                                ? FontWeight.bold
+                                : FontWeight.w600,
                           ),
                         ),
                         TextSpan(
                           text: lastMessage,
                           style: TextStyle(
-                            fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isUnread
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                           ),
                         ),
                       ],

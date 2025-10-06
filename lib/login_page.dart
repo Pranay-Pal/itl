@@ -1,11 +1,6 @@
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:itl/api_service.dart';
 import 'dashboard_screen.dart';
-
-const String baseUrl = 'https://mediumslateblue-hummingbird-258203.hostingersite.com/api';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,6 +19,7 @@ class _LoginPageState extends State<LoginPage>
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  final ApiService _apiService = ApiService();
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
@@ -31,65 +27,36 @@ class _LoginPageState extends State<LoginPage>
         _isLoading = true;
       });
 
-      String url;
-      Map<String, String> body = {};
+      final identifier = _selectedUserType == 'admin'
+          ? _emailController.text
+          : _userCodeController.text;
 
-      if (_selectedUserType == 'admin') {
-        url = '$baseUrl/user/login'; // Assuming admin and user login use the same endpoint
-        body = {
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        };
-      } else {
-        url = '$baseUrl/user/login';
-        body = {
-          'user_code': _userCodeController.text,
-          'password': _passwordController.text,
-        };
-      }
+      final success = await _apiService.login(
+        identifier,
+        _passwordController.text,
+        _selectedUserType,
+      );
 
-      try {
-        final response = await http.post(
-          Uri.parse(url),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        );
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final accessToken = data['access_token'];
-
-          // Store the token
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('access_token', accessToken);
-
-          // Navigate to dashboard
-          if (mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (BuildContext context) => const DashboardScreen()),
-            );
-          }
-        } else {
-          // Handle login error
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Login failed: ${response.body}')),
-            );
-          }
-        }
-      } catch (e) {
-        // Handle network or other errors
+      if (success) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('An error occurred: $e')),
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (BuildContext context) => const DashboardScreen(),
+            ),
           );
         }
-      } finally {
+      } else {
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Login failed')));
         }
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }

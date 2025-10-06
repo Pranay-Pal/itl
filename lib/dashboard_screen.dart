@@ -1,6 +1,5 @@
-
 import 'package:flutter/material.dart';
-import 'chat_screen.dart';
+import 'chatlistscreen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -24,7 +23,9 @@ class DashboardScreen extends StatelessWidget {
             icon: const Icon(Icons.chat),
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (BuildContext context) => const ChatScreen()),
+                MaterialPageRoute(
+                  builder: (BuildContext context) => const ChatListScreen(),
+                ),
               );
             },
           ),
@@ -44,16 +45,10 @@ class DashboardScreen extends StatelessWidget {
               ),
               child: const Text(
                 'ITL Menu',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 24),
               ),
             ),
-            const ListTile(
-              leading: Icon(Icons.home),
-              title: Text('Home'),
-            ),
+            const ListTile(leading: Icon(Icons.home), title: Text('Home')),
             const ListTile(
               leading: Icon(Icons.settings),
               title: Text('Settings'),
@@ -61,9 +56,7 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: const Center(
-        child: Text('Welcome to your dashboard!'),
-      ),
+      body: const Center(child: Text('Welcome to your dashboard!')),
     );
   }
 }

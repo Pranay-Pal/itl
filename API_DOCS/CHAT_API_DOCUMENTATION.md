@@ -2,7 +2,7 @@
 
 ## Base URL
 ```
-http://127.0.0.1:8000/api
+https://mediumslateblue-hummingbird-258203.hostingersite.com
 ```
 
 ## Authentication
