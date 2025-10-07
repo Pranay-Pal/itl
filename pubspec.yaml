@@ -14,12 +14,33 @@ dependencies:
   pusher_channels_flutter: ^2.5.0
   http: ^1.5.0
   shared_preferences: ^2.5.3
+  flutter_native_splash: ^2.4.6
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+# flutter_native_splash configuration - run `flutter pub run flutter_native_splash:create` after updating deps
+flutter_native_splash:
+  color: "#1466FF"
+  image: assets/images/logo.png
+  android: true
+  ios: true
+  web: false
+  fullscreen: true
+  android_gravity: center
+  ios_content_mode: center
+
+# flutter_launcher_icons configuration (new key format)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/images/logo.png
+  remove_alpha_ios: true
