@@ -133,7 +133,7 @@ class _LoginPageState extends State<LoginPage>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.12),
+                    color: Colors.white.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: const CircleAvatar(
@@ -171,7 +171,7 @@ class _LoginPageState extends State<LoginPage>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           DropdownButtonFormField<String>(
-                            value: _selectedUserType,
+                            initialValue: _selectedUserType,
                             decoration: InputDecoration(
                               labelText: 'Login as',
                               prefixIcon: const Icon(Icons.person),
@@ -320,7 +320,9 @@ class _LoginPageState extends State<LoginPage>
                                       borderRadius: BorderRadius.circular(12),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.15),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.15,
+                                          ),
                                           blurRadius: 8,
                                           offset: const Offset(0, 4),
                                         ),

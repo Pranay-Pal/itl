@@ -59,7 +59,7 @@ class _SplashScreenState extends State<SplashScreen> {
             children: [
               CircleAvatar(
                 radius: 125,
-                backgroundColor: Colors.white.withOpacity(0.06),
+                backgroundColor: Colors.white.withValues(alpha: 0.06),
                 child: CircleAvatar(
                   radius: 120,
                   backgroundImage: const AssetImage('assets/images/logo.png'),

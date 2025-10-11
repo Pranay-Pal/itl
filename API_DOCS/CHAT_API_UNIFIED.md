@@ -5,7 +5,7 @@ This is the complete API for the chat system combining both the streamlined API 
 Use this document as the single source of truth for mobile integration.
 
 Base URL
-- http://127.0.0.1:8000/api
+- http://mediumslateblue-hummingbird-258203.hostingersite.com/api
 
 Authentication
 - Users (guard: api)
@@ -50,7 +50,7 @@ Response 200
       "id": 88,
       "group_id": 12,
       "user_id": 1,
-      "user": { "id": 1, "name": "Test User", "avatar": "http://127.0.0.1:8000/storage/avatars/1.jpg", "is_chat_admin": false },
+      "user": { "id": 1, "name": "Test User", "avatar": "http://mediumslateblue-hummingbird-258203.hostingersite.com/storage/avatars/1.jpg", "is_chat_admin": false },
       "sender_name": "Test User",
       "sender_guard": "web",
       "type": "text",
@@ -100,7 +100,7 @@ React to a message
 POST /api/chat/messages/{messageId}/reactions
 POST /api/admin/chat/messages/{messageId}/reactions
 Body
-{ "type": "like" | "love" | "Hold" | "Booked" | "Unbooked" }
+{ "type":  "Hold" | "Booked" | "Unbooked" }
 Response 200
 { "status": "ok" }
 
@@ -136,16 +136,16 @@ GET /api/admin/chat/users/search?q=john
 
 Examples (cURL)
 # Login (user)
-curl -s -X POST http://127.0.0.1:8000/api/user/login -H "Content-Type: application/json" -d '{"user_code":"test123","password":"password123"}'
+curl -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/user/login -H "Content-Type: application/json" -d '{"user_code":"test123","password":"password123"}'
 
 # List groups
-curl -s http://127.0.0.1:8000/api/chat/groups -H "Authorization: Bearer <TOKEN>"
+curl -s http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/groups -H "Authorization: Bearer <TOKEN>"
 
 # Send text
-curl -s -X POST http://127.0.0.1:8000/api/chat/messages -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"group_id":12, "type":"text", "content":"Hello"}'
+curl -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"group_id":12, "type":"text", "content":"Hello"}'
 
 # Upload image
-curl -s -X POST http://127.0.0.1:8000/api/chat/messages/upload -H "Authorization: Bearer <TOKEN>" -F group_id=12 -F type=image -F file=@/path/to/pic.jpg
+curl -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages/upload -H "Authorization: Bearer <TOKEN>" -F group_id=12 -F type=image -F file=@/path/to/pic.jpg
 
 Notes
 - JWT tokens expire; handle refresh via /api/user/refresh or /api/admin/refresh.
@@ -196,12 +196,12 @@ The serializer exposes `status` on each message based on the latest reaction amo
 Examples (PowerShell-friendly)
 ```
 # Reply (user)
-curl.exe -s -X POST http://127.0.0.1:8000/api/chat/messages/123/reply -H "Authorization: Bearer <USER_TOKEN>" -H "Content-Type: application/json" -d "{\"type\":\"text\",\"content\":\"On it!\"}"
+curl.exe -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages/123/reply -H "Authorization: Bearer <USER_TOKEN>" -H "Content-Type: application/json" -d "{\"type\":\"text\",\"content\":\"On it!\"}"
 
 # Forward/share (user)
-curl.exe -s -X POST http://127.0.0.1:8000/api/chat/messages/123/forward -H "Authorization: Bearer <USER_TOKEN>" -H "Content-Type: application/json" -d "{\"target_group_ids\":[9,10]}"
-curl.exe -s -X POST http://127.0.0.1:8000/api/chat/messages/123/share -H "Authorization: Bearer <USER_TOKEN>" -H "Content-Type: application/json" -d "{\"target_group_id\":12}"
+curl.exe -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages/123/forward -H "Authorization: Bearer <USER_TOKEN>" -H "Content-Type: application/json" -d "{\"target_group_ids\":[9,10]}"
+curl.exe -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages/123/share -H "Authorization: Bearer <USER_TOKEN>" -H "Content-Type: application/json" -d "{\"target_group_id\":12}"
 
 # Set status (admin)
-curl.exe -s -X POST http://127.0.0.1:8000/api/admin/chat/messages/123/status -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d "{\"status\":\"cancel\"}"
+curl.exe -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/admin/chat/messages/123/status -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d "{\"status\":\"cancel\"}"
 ```

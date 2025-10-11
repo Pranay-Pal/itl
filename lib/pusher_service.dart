@@ -1,9 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.d';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 
 class PusherService {
+  static final PusherService _instance = PusherService._internal();
+  factory PusherService() => _instance;
+  PusherService._internal();
+
   PusherChannelsFlutter pusher = PusherChannelsFlutter.getInstance();
+  bool _connected = false;
+  final Set<String> _subscribed = <String>{};
+  final Set<String> _pendingSubscriptions = <String>{};
+
+  final _eventStreamController = StreamController<PusherEvent>.broadcast();
+  Stream<PusherEvent> get eventStream => _eventStreamController.stream;
 
   Future<void> initPusher() async {
     try {
@@ -18,80 +30,113 @@ class PusherService {
         onDecryptionFailure: onDecryptionFailure,
         onMemberAdded: onMemberAdded,
         onMemberRemoved: onMemberRemoved,
-        // authEndpoint: "<Your Authendpoint>",
-        // onAuthorizer: onAuthorizer
       );
     } catch (e) {
       if (kDebugMode) {
-        print("ERROR: Pusher initialization error: $e");
+        debugPrint("ERROR: Pusher initialization error: $e");
       }
     }
   }
 
   void onConnectionStateChange(dynamic currentState, dynamic previousState) {
     if (kDebugMode) {
-      print(
-          "Connection: $currentState, previous: $previousState");
+      debugPrint("Connection: $currentState, previous: $previousState");
     }
   }
 
   void onError(String message, int? code, dynamic e) {
     if (kDebugMode) {
-      print("onError: $message code: $code e: $e");
+      debugPrint("onError: $message code: $code e: $e");
     }
   }
 
   void onEvent(PusherEvent event) {
     if (kDebugMode) {
-      print("onEvent: $event");
+      debugPrint("onEvent: $event");
     }
-    // Handle the received event
+    _eventStreamController.add(event);
   }
 
   void onSubscriptionSucceeded(String channelName, dynamic data) {
     if (kDebugMode) {
-      print("onSubscriptionSucceeded: $channelName data: $data");
+      debugPrint("onSubscriptionSucceeded: $channelName data: $data");
     }
   }
 
   void onSubscriptionError(String message, dynamic e) {
     if (kDebugMode) {
-      print("onSubscriptionError: $message Exception: $e");
+      debugPrint("onSubscriptionError: $message Exception: $e");
     }
   }
 
   void onDecryptionFailure(String event, String reason) {
     if (kDebugMode) {
-      print("onDecryptionFailure: $event reason: $reason");
+      debugPrint("onDecryptionFailure: $event reason: $reason");
     }
   }
 
   void onMemberAdded(String channelName, PusherMember member) {
     if (kDebugMode) {
-      print("onMemberAdded: $channelName user: $member");
+      debugPrint("onMemberAdded: $channelName user: $member");
     }
   }
 
   void onMemberRemoved(String channelName, PusherMember member) {
     if (kDebugMode) {
-      print("onMemberRemoved: $channelName user: $member");
+      debugPrint("onMemberRemoved: $channelName user: $member");
     }
   }
 
-
   Future<void> connectPusher() async {
+    if (_connected) {
+      return;
+    }
     await pusher.connect();
+    _connected = true;
   }
 
   Future<void> subscribeToChannel(String channelName) async {
-    await pusher.subscribe(channelName: channelName);
+    // ensure connected first
+    if (!_connected) {
+      await connectPusher();
+    }
+    if (_subscribed.contains(channelName) ||
+        _pendingSubscriptions.contains(channelName)) {
+      return;
+    }
+
+    _pendingSubscriptions.add(channelName);
+    try {
+      await pusher.subscribe(channelName: channelName);
+      _subscribed.add(channelName);
+    } catch (e) {
+      // Ignore duplicate subscription errors gracefully
+      if (kDebugMode) {
+        debugPrint('Pusher subscribe error for "$channelName": $e');
+      }
+    } finally {
+      _pendingSubscriptions.remove(channelName);
+    }
   }
 
   Future<void> unsubscribeFromChannel(String channelName) async {
-    await pusher.unsubscribe(channelName: channelName);
+    if (!_subscribed.contains(channelName)) {
+      return;
+    }
+    try {
+      await pusher.unsubscribe(channelName: channelName);
+    } finally {
+      _subscribed.remove(channelName);
+    }
   }
 
   void disconnectPusher() {
     pusher.disconnect();
+    _connected = false;
+    _subscribed.clear();
+  }
+
+  void dispose() {
+    _eventStreamController.close();
   }
 }

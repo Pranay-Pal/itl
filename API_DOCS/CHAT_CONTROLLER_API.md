@@ -3,7 +3,7 @@
 This document describes the REST API implemented by `App\Http\Controllers\ChatController` and the new JWT-protected routes defined under `routes/api.php`.
 
 Base URL
-- Local: http://127.0.0.1:8000/api
+- Local: http://mediumslateblue-hummingbird-258203.hostingersite.com/api
 
 Authentication
 - Users: JWT guard `api` (login at POST /api/user/login)
@@ -28,7 +28,7 @@ GET /api/admin/chat/groups
   {
     "id": 1,
     "name": "Bookings",
-    "avatar": "http://127.0.0.1:8000/storage/avatars/5.jpg",
+    "avatar": "http://mediumslateblue-hummingbird-258203.hostingersite.com/storage/avatars/5.jpg",
     "latest": {
       "id": 45,
       "type": "text",
@@ -60,7 +60,7 @@ Response 200
     "id": 88,
     "group_id": 12,
     "user_id": 1,
-    "user": { "id": 1, "name": "Test User", "avatar": "http://127.0.0.1:8000/storage/avatars/1.jpg", "is_chat_admin": false },
+    "user": { "id": 1, "name": "Test User", "avatar": "http://mediumslateblue-hummingbird-258203.hostingersite.com/storage/avatars/1.jpg", "is_chat_admin": false },
     "sender_name": "Test User",
     "sender_guard": "web",
     "type": "text",
@@ -98,7 +98,7 @@ React to a message (admin-only)
 POST /api/chat/messages/{messageId}/reactions
 POST /api/admin/chat/messages/{messageId}/reactions
 Body
-{ "type": "Hold" | "Booked" | "Unbooked" | "like" | "love" | ... }
+{ "type": "Hold" | "Booked" | "Unbooked" ... }
 Response 200
 { "status": "ok" }
 
@@ -159,16 +159,16 @@ Notes
 
 Examples (curl)
 # Login (user)
-curl -s -X POST http://127.0.0.1:8000/api/user/login -H "Content-Type: application/json" -d '{"user_code":"test123","password":"password123"}'
+curl -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/user/login -H "Content-Type: application/json" -d '{"user_code":"test123","password":"password123"}'
 
 # List groups
-curl -s http://127.0.0.1:8000/api/chat/groups -H "Authorization: Bearer <TOKEN>"
+curl -s http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/groups -H "Authorization: Bearer <TOKEN>"
 
 # Send text
-curl -s -X POST http://127.0.0.1:8000/api/chat/messages -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"group_id":12, "type":"text", "content":"Hello"}'
+curl -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"group_id":12, "type":"text", "content":"Hello"}'
 
 # Send image
-curl -s -X POST http://127.0.0.1:8000/api/chat/messages -H "Authorization: Bearer <TOKEN>" -F group_id=12 -F type=image -F file=@/path/to/pic.jpg
+curl -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages -H "Authorization: Bearer <TOKEN>" -F group_id=12 -F type=image -F file=@/path/to/pic.jpg
 
 ---
 

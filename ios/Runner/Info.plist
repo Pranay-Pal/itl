@@ -49,5 +49,7 @@
 		<true/>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>This app requires microphone access to record and send voice messages.</string>
 	</dict>
 </plist>

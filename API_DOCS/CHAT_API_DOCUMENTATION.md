@@ -2,7 +2,7 @@
 
 ## Base URL
 ```
-https://mediumslateblue-hummingbird-258203.hostingersite.com
+http://mediumslateblue-hummingbird-258203.hostingersite.com/api
 ```
 
 ## Authentication
@@ -223,38 +223,6 @@ Content-Type: application/json
 }
 ```
 
-### 5. React to Message
-
-#### User Endpoint
-```http
-POST /api/chat/messages/{message_id}/reactions
-Authorization: Bearer {user_token}
-Content-Type: application/json
-
-{
-    "type": "like"
-}
-```
-
-#### Admin Endpoint
-```http
-POST /api/admin/chat/messages/{message_id}/reactions
-Authorization: Bearer {admin_token}
-Content-Type: application/json
-
-{
-    "type": "Hold"
-}
-```
-
-**Reaction Types:**
-- `Hold`
-- `Booked`
-- `Cancel`
-- `Reply`
-- `Forward`
-- `Share`
-
 ### 6. Get Unread Message Counts
 
 #### User Endpoint
@@ -367,7 +335,7 @@ Authorization: Bearer {admin_token}
 ```javascript
 // Login function
 async function loginUser(userCode, password) {
-    const response = await fetch('http://127.0.0.1:8000/api/user/login', {
+    const response = await fetch('http://mediumslateblue-hummingbird-258203.hostingersite.com/api/user/login', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -389,7 +357,7 @@ async function loginUser(userCode, password) {
 // Get chat groups
 async function getChatGroups() {
     const token = localStorage.getItem('chat_token');
-    const response = await fetch('http://127.0.0.1:8000/api/chat/groups', {
+    const response = await fetch('http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/groups', {
         headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -403,7 +371,7 @@ async function getChatGroups() {
 // Send message
 async function sendMessage(groupId, message) {
     const token = localStorage.getItem('chat_token');
-    const response = await fetch('http://127.0.0.1:8000/api/chat/messages', {
+    const response = await fetch('http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages', {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -424,7 +392,7 @@ async function sendMessage(groupId, message) {
 ### Flutter/Dart Example
 ```dart
 class ChatApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = 'http://mediumslateblue-hummingbird-258203.hostingersite.com/api';
   String? _token;
   
   Future<String> login(String userCode, String password) async {
@@ -471,7 +439,7 @@ class ChatApiService {
 ## Postman Collection
 
 Import this URL in Postman for ready-to-use requests:
-- Base URL: `http://127.0.0.1:8000/api`
+- Base URL: `http://mediumslateblue-hummingbird-258203.hostingersite.com/api`
 - Collection includes all endpoints with sample requests
 
 ## Support
@@ -483,3 +451,54 @@ For technical support or questions about the API implementation, contact the bac
 **Last Updated:** October 2, 2025  
 **API Version:** 1.0  
 **Laravel Version:** 10+
+
+---
+
+## Action Endpoints (Reply, Forward, Share, Status)
+
+These endpoints extend message operations and are available for both user and admin guards.
+
+Get single message
+```
+GET /api/chat/messages/{messageId}
+GET /api/admin/chat/messages/{messageId}
+```
+
+Reply to a message
+```
+POST /api/chat/messages/{messageId}/reply
+POST /api/admin/chat/messages/{messageId}/reply
+Body (JSON): { "type": "text" | "file" | "image", "content": "Reply text (if type=text)" }
+```
+
+Forward/share a message
+```
+POST /api/chat/messages/{messageId}/forward   Body: { "target_group_ids": [12, 13] }
+POST /api/chat/messages/{messageId}/share     Body: { "target_group_id": 12 } or { "target_group_ids": [12,13] }
+```
+
+Set message status (hold/booked/cancel)
+```
+POST /api/chat/messages/{messageId}/status    Body: { "status": "hold" | "booked" | "cancel" }
+POST /api/admin/chat/messages/{messageId}/status    Body: { "status": "hold" | "booked" | "cancel" }
+```
+
+Status mapping and serializer
+- hold   → reaction: "Hold"
+- booked → reaction: "Booked"
+- cancel → reaction: "Unbooked"
+
+The serializer returns `status` based on latest reaction in that set. Action-type messages also include a parsed `action` object.
+
+Windows PowerShell curl examples
+```
+# Reply
+curl.exe -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages/123/reply -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d "{\"type\":\"text\",\"content\":\"On it!\"}"
+
+# Forward/share
+curl.exe -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages/123/forward -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d "{\"target_group_ids\":[9,10]}"
+curl.exe -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages/123/share -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d "{\"target_group_id\":12}"
+
+# Set status
+curl.exe -s -X POST http://mediumslateblue-hummingbird-258203.hostingersite.com/api/chat/messages/123/status -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d "{\"status\":\"booked\"}"
+```
