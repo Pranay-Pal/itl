@@ -58,6 +58,99 @@ class ApiService {
     debugPrint('--------------------');
   }
 
+  // Returns the expiry DateTime of the JWT if present, otherwise null.
+  DateTime? _getTokenExpiry(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = parts[1];
+      final normalized = base64Url.normalize(payload);
+      final resp = utf8.decode(base64Url.decode(normalized));
+      final payloadMap = json.decode(resp);
+      if (payloadMap is Map<String, dynamic> && payloadMap.containsKey('exp')) {
+        final exp = payloadMap['exp'];
+        if (exp is int) {
+          return DateTime.fromMillisecondsSinceEpoch(exp * 1000, isUtc: true)
+              .toLocal();
+        } else if (exp is String) {
+          final v = int.tryParse(exp);
+          if (v != null) {
+            return DateTime.fromMillisecondsSinceEpoch(v * 1000, isUtc: true)
+                .toLocal();
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Error decoding token expiry: $e');
+    }
+    return null;
+  }
+
+  // If token is present and expiring soon, attempt a refresh.
+  // Returns true if token is valid after this call (either unchanged or refreshed).
+  Future<bool> _ensureTokenValid() async {
+    if (_token == null) return false;
+    final expiry = _getTokenExpiry(_token!);
+    // If expiry unknown, don't try to proactively refresh.
+    if (expiry == null) return true;
+
+    final now = DateTime.now();
+    // Refresh if token is already expired or will expire within 5 minutes.
+    const refreshBefore = Duration(minutes: 5);
+    if (expiry.isBefore(now) || expiry.difference(now) <= refreshBefore) {
+      if (kDebugMode) {
+        debugPrint('Token is expired or expiring soon, attempting refresh...');
+      }
+      final refreshed = await refreshToken();
+      return refreshed;
+    }
+    return true;
+  }
+
+  // Send an HTTP request with Authorization header and automatically retry once after a successful refresh if a 401 is received.
+  Future<http.Response> _sendHttpWithAuthAndRetry(
+    String method,
+    String url, {
+    Map<String, String>? headers,
+    dynamic body,
+  }) async {
+    await _loadToken();
+    await _ensureTokenValid();
+
+    Map<String, String> reqHeaders = _defaultHeaders(includeAuth: true);
+    if (headers != null) reqHeaders.addAll(headers);
+
+    Future<http.Response> doRequest(Map<String, String> useHeaders) async {
+      _logRequest(method, url, useHeaders, body);
+      switch (method.toUpperCase()) {
+        case 'GET':
+          return await http.get(Uri.parse(url), headers: useHeaders);
+        case 'POST':
+          return await http.post(Uri.parse(url),
+              headers: useHeaders,
+              body: body == null ? null : jsonEncode(body));
+        case 'DELETE':
+          return await http.delete(Uri.parse(url), headers: useHeaders);
+        default:
+          throw UnsupportedError('HTTP method $method not supported');
+      }
+    }
+
+    var response = await doRequest(reqHeaders);
+    _logResponse(url, response);
+
+    if (response.statusCode == 401) {
+      final didRefresh = await refreshToken();
+      if (didRefresh) {
+        final retryHeaders = _defaultHeaders(includeAuth: true);
+        if (headers != null) retryHeaders.addAll(headers);
+        response = await doRequest(retryHeaders);
+        _logResponse(url, response);
+      }
+    }
+    return response;
+  }
+
   int? _getUserIdFromToken(String token) {
     try {
       final parts = token.split('.');
@@ -135,15 +228,11 @@ class ApiService {
   }
 
   Future<List<dynamic>> getChatGroups() async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/groups'
         : '$_baseUrl/chat/groups';
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('GET', url, headers, null);
 
-    final response = await http.get(Uri.parse(url), headers: headers);
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -157,20 +246,12 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>?> createGroup(String name) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/groups'
         : '$_baseUrl/chat/groups';
     final body = {'name': name};
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('POST', url, headers, body);
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: headers,
-      body: jsonEncode(body),
-    );
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     if (response.statusCode == 201) {
       final data = jsonDecode(response.body);
@@ -180,15 +261,11 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getMessages(int groupId, {int page = 1}) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages?group_id=$groupId&page=$page'
         : '$_baseUrl/chat/messages?group_id=$groupId&page=$page';
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('GET', url, headers, null);
 
-    final response = await http.get(Uri.parse(url), headers: headers);
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -200,15 +277,11 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>?> getSingleMessage(int messageId) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId'
         : '$_baseUrl/chat/messages/$messageId';
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('GET', url, headers, null);
 
-    final response = await http.get(Uri.parse(url), headers: headers);
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -217,15 +290,11 @@ class ApiService {
   }
 
   Future<List<dynamic>> getMessagesSince(int groupId, int afterId) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/since?group_id=$groupId&after_id=$afterId'
         : '$_baseUrl/chat/messages/since?group_id=$groupId&after_id=$afterId';
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('GET', url, headers, null);
 
-    final response = await http.get(Uri.parse(url), headers: headers);
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -235,7 +304,6 @@ class ApiService {
 
   Future<Map<String, dynamic>?> sendMessage(int groupId, String content,
       {String type = 'text'}) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages'
         : '$_baseUrl/chat/messages';
@@ -244,15 +312,8 @@ class ApiService {
       'type': type,
       'content': content,
     };
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('POST', url, headers, body);
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: headers,
-      body: jsonEncode(body),
-    );
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     if (response.statusCode == 201) {
       final data = jsonDecode(response.body);
@@ -263,7 +324,6 @@ class ApiService {
 
   Future<Map<String, dynamic>?> replyToMessage(int messageId, String content,
       {String type = 'text'}) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId/reply'
         : '$_baseUrl/chat/messages/$messageId/reply';
@@ -271,15 +331,8 @@ class ApiService {
       'type': type,
       'content': content,
     };
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('POST', url, headers, body);
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: headers,
-      body: jsonEncode(body),
-    );
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     if (response.statusCode == 201) {
       return jsonDecode(response.body);
@@ -294,19 +347,33 @@ class ApiService {
         ? '$_baseUrl/admin/chat/messages/upload'
         : '$_baseUrl/chat/messages/upload';
 
-    final request = http.MultipartRequest('POST', Uri.parse(url));
-    request.headers['Authorization'] = 'Bearer $_token';
-    request.fields['group_id'] = groupId.toString();
-    request.fields['type'] = type;
+    Future<http.StreamedResponse> makeRequest() async {
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+      request.headers['Authorization'] = 'Bearer $_token';
+      request.fields['group_id'] = groupId.toString();
+      request.fields['type'] = type;
 
-    final file = await http.MultipartFile.fromPath('file', filePath);
-    request.files.add(file);
+      final file = await http.MultipartFile.fromPath('file', filePath);
+      request.files.add(file);
 
-    if (replyToMessageId != null) {
-      request.fields['reply_to_message_id'] = replyToMessageId.toString();
+      if (replyToMessageId != null) {
+        request.fields['reply_to_message_id'] = replyToMessageId.toString();
+      }
+
+      return await request.send();
     }
 
-    final response = await request.send();
+    await _ensureTokenValid();
+
+    var response = await makeRequest();
+
+    // If unauthorized, try refreshing and retry once.
+    if (response.statusCode == 401) {
+      final didRefresh = await refreshToken();
+      if (didRefresh) {
+        response = await makeRequest();
+      }
+    }
 
     if (response.statusCode == 201) {
       final responseBody = await response.stream.bytesToString();
@@ -316,17 +383,12 @@ class ApiService {
   }
 
   Future<bool> markAsSeen(int groupId, int lastId) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/mark-seen'
         : '$_baseUrl/chat/mark-seen';
     final body = {'group_id': groupId, 'last_id': lastId};
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('POST', url, headers, body);
 
-    final response = await http.post(Uri.parse(url),
-        headers: headers, body: jsonEncode(body));
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -336,15 +398,11 @@ class ApiService {
   }
 
   Future<bool> deleteMessage(int messageId) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId'
         : '$_baseUrl/chat/messages/$messageId';
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('DELETE', url, headers, null);
 
-    final response = await http.delete(Uri.parse(url), headers: headers);
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('DELETE', url);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -357,20 +415,12 @@ class ApiService {
     int messageId,
     String type,
   ) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId/reactions'
         : '$_baseUrl/chat/messages/$messageId/reactions';
     final body = {'type': type};
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('POST', url, headers, body);
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: headers,
-      body: jsonEncode(body),
-    );
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -380,47 +430,33 @@ class ApiService {
   }
 
   Future<bool> forwardMessage(int messageId, List<int> targetGroupIds) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId/forward'
         : '$_baseUrl/chat/messages/$messageId/forward';
     final body = {'target_group_ids': targetGroupIds};
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('POST', url, headers, body);
 
-    final response = await http.post(Uri.parse(url),
-        headers: headers, body: jsonEncode(body));
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     return response.statusCode == 200;
   }
 
   Future<bool> setMessageStatus(int messageId, String status) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId/status'
         : '$_baseUrl/chat/messages/$messageId/status';
     final body = {'status': status};
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('POST', url, headers, body);
 
-    final response = await http.post(Uri.parse(url),
-        headers: headers, body: jsonEncode(body));
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     return response.statusCode == 200;
   }
 
   Future<Map<String, dynamic>?> createDirectMessage(int userId) async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/direct-with/$userId'
         : '$_baseUrl/chat/direct-with/$userId';
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('GET', url, headers, null);
 
-    final response = await http.get(Uri.parse(url), headers: headers);
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -432,29 +468,20 @@ class ApiService {
   }
 
   Future<bool> setChatAdmin(int userId, bool isAdmin) async {
-    await _loadToken();
     final url = '$_baseUrl/admin/chat/users/$userId/set-admin';
     final body = {'is_admin': isAdmin};
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('POST', url, headers, body);
 
-    final response = await http.post(Uri.parse(url),
-        headers: headers, body: jsonEncode(body));
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     return response.statusCode == 200;
   }
 
   Future<Map<String, dynamic>?> getUnreadCounts() async {
-    await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/unread-counts'
         : '$_baseUrl/chat/unread-counts';
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('GET', url, headers, null);
 
-    final response = await http.get(Uri.parse(url), headers: headers);
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -462,17 +489,64 @@ class ApiService {
     return null;
   }
 
-  Future<List<dynamic>> searchUsers(String q) async {
+  /// Refresh the current access token using the appropriate guard endpoint.
+  ///
+  /// Returns true if refresh succeeded and the new token was saved.
+  Future<bool> refreshToken() async {
     await _loadToken();
+    if (_token == null) return false;
+
+    final url = _userType == 'admin'
+        ? '$_baseUrl/admin/refresh'
+        : '$_baseUrl/user/refresh';
+    // _defaultHeaders(includeAuth: true) will include Authorization: Bearer <token>
+    final headers = _defaultHeaders(includeAuth: true);
+    _logRequest('POST', url, headers, null);
+
+    final response = await http.post(Uri.parse(url), headers: headers);
+    _logResponse(url, response);
+
+    if (response.statusCode == 200) {
+      try {
+        final data = jsonDecode(response.body);
+        if (data is Map && data['access_token'] != null) {
+          _token = data['access_token'];
+
+          // Try to obtain user id from returned body if provided, otherwise decode token
+          if (data.containsKey('user') && data['user']?['id'] != null) {
+            _userId = data['user']['id'];
+          } else {
+            final id = _getUserIdFromToken(_token!);
+            if (id != null) _userId = id;
+          }
+
+          // Persist updated token & user info
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('access_token', _token!);
+          if (_userType != null) await prefs.setString('user_type', _userType!);
+          if (_userId != null) {
+            await prefs.setInt('user_id', _userId!);
+          } else {
+            await prefs.remove('user_id');
+          }
+
+          return true;
+        }
+      } catch (e) {
+        if (kDebugMode) debugPrint('Error parsing refresh response: $e');
+      }
+    }
+
+    return false;
+  }
+
+  Future<List<dynamic>> searchUsers(String q) async {
     final encoded = Uri.encodeQueryComponent(q);
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/users/search?q=$encoded'
         : '$_baseUrl/chat/users/search?q=$encoded';
-    final headers = _defaultHeaders(includeAuth: true);
-    _logRequest('GET', url, headers, null);
 
-    final response = await http.get(Uri.parse(url), headers: headers);
-    _logResponse(url, response);
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
