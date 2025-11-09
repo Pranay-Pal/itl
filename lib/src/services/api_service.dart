@@ -30,7 +30,7 @@ class ApiService {
     return headers;
   }
 
-    void _logRequest(
+  void _logRequest(
     String method,
     String url,
     Map<String, String> headers,
@@ -78,15 +78,13 @@ class ApiService {
     return null;
   }
 
-
   Future<Map<String, dynamic>> login(
     String identifier,
     String password,
     String userType,
   ) async {
-    final String url = userType == 'admin'
-        ? '$_baseUrl/admin/login'
-        : '$_baseUrl/user/login';
+    final String url =
+        userType == 'admin' ? '$_baseUrl/admin/login' : '$_baseUrl/user/login';
     final Map<String, String> body = userType == 'admin'
         ? {'email': identifier, 'password': password}
         : {'user_code': identifier, 'password': password};
@@ -201,7 +199,7 @@ class ApiService {
     return {};
   }
 
-    Future<Map<String, dynamic>?> getSingleMessage(int messageId) async {
+  Future<Map<String, dynamic>?> getSingleMessage(int messageId) async {
     await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId'
@@ -235,8 +233,8 @@ class ApiService {
     return [];
   }
 
-
-  Future<Map<String, dynamic>?> sendMessage(int groupId, String content, {String type = 'text'}) async {
+  Future<Map<String, dynamic>?> sendMessage(int groupId, String content,
+      {String type = 'text'}) async {
     await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages'
@@ -263,7 +261,8 @@ class ApiService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> replyToMessage(int messageId, String content, {String type = 'text'}) async {
+  Future<Map<String, dynamic>?> replyToMessage(int messageId, String content,
+      {String type = 'text'}) async {
     await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId/reply'
@@ -288,7 +287,8 @@ class ApiService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> uploadFile(int groupId, String filePath, {String type = 'image', int? replyToMessageId}) async {
+  Future<Map<String, dynamic>?> uploadFile(int groupId, String filePath,
+      {String type = 'image', int? replyToMessageId}) async {
     await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/upload'
@@ -297,7 +297,7 @@ class ApiService {
     final request = http.MultipartRequest('POST', Uri.parse(url));
     request.headers['Authorization'] = 'Bearer $_token';
     request.fields['group_id'] = groupId.toString();
-		request.fields['type'] = type;
+    request.fields['type'] = type;
 
     final file = await http.MultipartFile.fromPath('file', filePath);
     request.files.add(file);
@@ -324,7 +324,8 @@ class ApiService {
     final headers = _defaultHeaders(includeAuth: true);
     _logRequest('POST', url, headers, body);
 
-    final response = await http.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
+    final response = await http.post(Uri.parse(url),
+        headers: headers, body: jsonEncode(body));
     _logResponse(url, response);
 
     if (response.statusCode == 200) {
@@ -378,7 +379,7 @@ class ApiService {
     return false;
   }
 
-    Future<bool> forwardMessage(int messageId, List<int> targetGroupIds) async {
+  Future<bool> forwardMessage(int messageId, List<int> targetGroupIds) async {
     await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages/$messageId/forward'
@@ -387,7 +388,8 @@ class ApiService {
     final headers = _defaultHeaders(includeAuth: true);
     _logRequest('POST', url, headers, body);
 
-    final response = await http.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
+    final response = await http.post(Uri.parse(url),
+        headers: headers, body: jsonEncode(body));
     _logResponse(url, response);
 
     return response.statusCode == 200;
@@ -402,7 +404,8 @@ class ApiService {
     final headers = _defaultHeaders(includeAuth: true);
     _logRequest('POST', url, headers, body);
 
-    final response = await http.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
+    final response = await http.post(Uri.parse(url),
+        headers: headers, body: jsonEncode(body));
     _logResponse(url, response);
 
     return response.statusCode == 200;
@@ -435,7 +438,8 @@ class ApiService {
     final headers = _defaultHeaders(includeAuth: true);
     _logRequest('POST', url, headers, body);
 
-    final response = await http.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
+    final response = await http.post(Uri.parse(url),
+        headers: headers, body: jsonEncode(body));
     _logResponse(url, response);
 
     return response.statusCode == 200;

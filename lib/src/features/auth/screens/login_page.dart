@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:itl/api_service.dart';
-import 'package:itl/constants.dart';
-import 'dashboard_screen.dart';
+import 'package:itl/src/services/api_service.dart';
+import 'package:itl/src/config/constants.dart';
+import 'package:itl/src/features/dashboard/screens/dashboard_screen.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -146,9 +146,9 @@ class _LoginPageState extends State<LoginPage>
                 Text(
                   'Welcome Back',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 const Text(

@@ -3,16 +3,17 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:itl/api_service.dart';
-import 'package:itl/constants.dart';
-import 'package:itl/pusher_service.dart';
-import 'package:itl/voice_message_player_widget.dart' as voice_widget;
-import 'package:itl/download_util.dart' as download_util;
+import 'package:itl/src/services/api_service.dart';
+import 'package:itl/src/config/constants.dart';
+import 'package:itl/src/services/pusher_service.dart';
+import 'package:itl/src/features/chat/widgets/voice_message_player_widget.dart'
+    as voice_widget;
+import 'package:itl/src/services/download_util.dart' as download_util;
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
-import 'package:itl/base_url.dart';
+import 'package:itl/src/config/base_url.dart';
 import 'package:share_plus/share_plus.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -77,6 +78,17 @@ class _ChatScreenState extends State<ChatScreen> {
               _messages.add(message);
             }
           });
+          // Mark as seen when receiving a new message in this open chat that's not mine
+          final currentUserId = _apiService.currentUserId;
+          final msgUserId = message['user_id'] ?? message['user']?['id'];
+          if (currentUserId != null && msgUserId != currentUserId) {
+            final lastId = message['id'] is int
+                ? message['id'] as int
+                : int.tryParse(message['id'].toString()) ?? 0;
+            if (lastId > 0) {
+              _apiService.markAsSeen(widget.groupId, lastId);
+            }
+          }
           _scrollToBottomDelayed();
         }
       } else if (event.eventName == 'ChatMessageUpdated') {
@@ -110,7 +122,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     _eventSubscription.cancel();
-    _pusherService.unsubscribeFromChannel('chat');
     _recordTimer?.cancel();
     super.dispose();
   }
@@ -800,24 +811,35 @@ class _ChatScreenState extends State<ChatScreen> {
                       resolvedUrl ?? (msg['content'] ?? ''),
                     );
                     if (type == 'image') {
+                      final heroTag = 'image_${msg['id'] ?? fileUrl}';
                       messageContent = Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           GestureDetector(
                             onTap: () {
-                              showDialog(
-                                context: context,
-                                builder: (_) =>
-                                    Dialog(child: Image.network(fileUrl)),
+                              Navigator.of(context).push(
+                                PageRouteBuilder(
+                                  opaque: false,
+                                  pageBuilder: (_, __, ___) => _ImageViewerPage(
+                                    url: fileUrl,
+                                    heroTag: heroTag,
+                                  ),
+                                ),
                               );
                             },
-                            child: Image.network(
-                              fileUrl,
-                              width: 180,
-                              height: 180,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.broken_image),
+                            child: Hero(
+                              tag: heroTag,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  fileUrl,
+                                  width: 180,
+                                  height: 180,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.broken_image),
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -903,8 +925,23 @@ class _ChatScreenState extends State<ChatScreen> {
                     // reply preview
                     final replyWidget = _buildReplyPreview(msg);
 
+                    double dragDx = 0;
                     return GestureDetector(
                       onLongPress: () => _showActionsDialog(msg),
+                      onHorizontalDragUpdate: (details) {
+                        // Only react to right-swipe for reply
+                        if (details.delta.dx > 0) {
+                          dragDx += details.delta.dx;
+                        } else {
+                          dragDx = 0;
+                        }
+                      },
+                      onHorizontalDragEnd: (_) {
+                        if (dragDx > 60) {
+                          setState(() => _replyToMessageId = msg['id']);
+                        }
+                        dragDx = 0;
+                      },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Row(
@@ -1112,6 +1149,52 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ImageViewerPage extends StatelessWidget {
+  final String url;
+  final String heroTag;
+
+  const _ImageViewerPage({required this.url, required this.heroTag});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Scaffold(
+        backgroundColor: Colors.black.withValues(alpha: 0.98),
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Center(
+                child: Hero(
+                  tag: heroTag,
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4.0,
+                    child: Image.network(
+                      url,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.broken_image, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

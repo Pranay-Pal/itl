@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:itl/api_service.dart';
-import 'package:itl/chat_screen.dart';
-import 'package:itl/constants.dart';
-import 'package:itl/pusher_service.dart';
+import 'package:itl/src/services/api_service.dart';
+import 'package:itl/src/features/chat/screens/chat_screen.dart';
+import 'package:itl/src/config/constants.dart';
+import 'package:itl/src/services/pusher_service.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
-import 'package:itl/shared_intent_service.dart';
+import 'package:itl/src/services/shared_intent_service.dart';
 import 'package:share_handler/share_handler.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -22,6 +22,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final PusherService _pusherService = PusherService();
   late StreamSubscription<PusherEvent> _eventSubscription;
   StreamSubscription? _sharedDataSubscription;
+  Timer? _unreadTimer;
 
   List<dynamic> _chatGroups = [];
   List<dynamic> _searchResults = [];
@@ -37,6 +38,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
     _fetchData();
     _subscribeToPusherEvents();
     _initSharedIntentService();
+    // Periodically refresh unread counts to stay in sync with server
+    _unreadTimer?.cancel();
+    _unreadTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      _refreshUnreadCounts();
+    });
   }
 
   @override
@@ -45,6 +51,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     _sharedDataSubscription?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
+    _unreadTimer?.cancel();
     super.dispose();
   }
 
@@ -184,7 +191,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 'created_at': message['created_at'],
                 'sender_name': message['sender_name'],
               };
-              group['unread'] = (group['unread'] ?? 0) + 1;
+              // Increment unread only if message isn't from current user
+              final currentUserId = _apiService.currentUserId;
+              final msgUserId = message['user_id'] ?? message['user']?['id'];
+              final isMine =
+                  currentUserId != null && msgUserId == currentUserId;
+              if (!isMine) {
+                final prev = group['unread'];
+                int current = 0;
+                if (prev is int) current = prev;
+                if (prev is String) current = int.tryParse(prev) ?? 0;
+                if (prev is double) current = prev.round();
+                group['unread'] = current + 1;
+              }
 
               // Move the updated chat to the top
               final updatedGroup = _chatGroups.removeAt(index);
@@ -215,6 +234,44 @@ class _ChatListScreenState extends State<ChatListScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _refreshUnreadCounts() async {
+    try {
+      final data = await _apiService.getUnreadCounts();
+      if (!mounted) return;
+      if (data == null) return;
+      final groups = (data['groups'] as List?) ?? [];
+      if (groups.isEmpty) return;
+      // Build lookup for quick updates
+      final Map<int, Map<String, dynamic>> byId = {
+        for (final g in groups)
+          if (g is Map && g['group_id'] != null)
+            int.tryParse(g['group_id'].toString()) ?? -1:
+                (g as Map<String, dynamic>)
+      }..removeWhere((key, value) => key == -1);
+
+      setState(() {
+        for (var i = 0; i < _chatGroups.length; i++) {
+          final g = _chatGroups[i] as Map;
+          final id = g['id'];
+          if (id is int && byId.containsKey(id)) {
+            final server = byId[id]!;
+            // Update unread count
+            final u = server['unread_count'];
+            int unread = 0;
+            if (u is int) unread = u;
+            if (u is String) unread = int.tryParse(u) ?? 0;
+            if (u is double) unread = u.round();
+            g['unread'] = unread;
+            // Optionally update latest preview
+            if (server['latest'] is Map) {
+              g['latest'] = server['latest'];
+            }
+          }
+        }
+      });
+    } catch (_) {}
   }
 
   void _showCreateGroupDialog() {
@@ -422,6 +479,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
           margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
           child: ListTile(
             onTap: () {
+              // Optimistically clear unread for this group for snappier UX
+              setState(() {
+                final prev = group['unread'];
+                if (prev != null) group['unread'] = 0;
+              });
               Navigator.of(context)
                   .push(
                     MaterialPageRoute(

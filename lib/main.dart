@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:itl/pusher_service.dart';
-import 'splash_screen.dart';
+import 'package:itl/src/services/pusher_service.dart';
+import 'package:itl/src/common/screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +14,7 @@ Future<void> main() async {
     print("PUSHER_APP_KEY: ${dotenv.env['PUSHER_APP_KEY']}");
     print("PUSHER_APP_CLUSTER: ${dotenv.env['PUSHER_APP_CLUSTER']}");
   }
-  
+
   await PusherService().initPusher();
 
   runApp(const MyApp());
