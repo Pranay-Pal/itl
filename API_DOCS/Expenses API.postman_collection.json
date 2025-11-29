@@ -1,0 +1,436 @@
+{
+	"info": {
+		"_postman_id": "a21a101a-2ac5-4f15-94aa-08c09fec559e",
+		"name": "Expenses API",
+		"description": "Beginner-friendly collection for the Expenses API. Set the collection variables before sending any request.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "30319976"
+	},
+	"item": [
+		{
+			"name": "User Endpoints",
+			"item": [
+				{
+					"name": "Auth - User Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_code\": \"001\",\n  \"password\": \"12345678\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/user/login",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"user",
+								"login"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Auth - User Login",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"user_code\": \"001\",\n  \"password\": \"12345678\"\n}"
+								},
+								"url": {
+									"raw": "{{BASE_URL}}/user/login",
+									"host": [
+										"{{BASE_URL}}"
+									],
+									"path": [
+										"user",
+										"login"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": null,
+							"header": [
+								{
+									"key": "Date",
+									"value": "Sat, 15 Nov 2025 17:59:40 GMT"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								},
+								{
+									"key": "Transfer-Encoding",
+									"value": "chunked"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "Vary",
+									"value": "Accept-Encoding"
+								},
+								{
+									"key": "X-Powered-By",
+									"value": "PHP/8.2.28"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "no-cache, private"
+								},
+								{
+									"key": "X-RateLimit-Limit",
+									"value": "60"
+								},
+								{
+									"key": "X-RateLimit-Remaining",
+									"value": "59"
+								},
+								{
+									"key": "Access-Control-Allow-Origin",
+									"value": "*"
+								},
+								{
+									"key": "platform",
+									"value": "hostinger"
+								},
+								{
+									"key": "panel",
+									"value": "hpanel"
+								},
+								{
+									"key": "Content-Security-Policy",
+									"value": "upgrade-insecure-requests"
+								},
+								{
+									"key": "Server",
+									"value": "hcdn"
+								},
+								{
+									"key": "x-hcdn-request-id",
+									"value": "f6ca36494b7384ff132bc5ca653641f3-mum-edge5"
+								},
+								{
+									"key": "x-hcdn-cache-status",
+									"value": "DYNAMIC"
+								},
+								{
+									"key": "x-hcdn-upstream-rt",
+									"value": "0.166"
+								},
+								{
+									"key": "Content-Encoding",
+									"value": "br"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"access_token\": \"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL21lZGl1bXNsYXRlYmx1ZS1odW1taW5nYmlyZC0yNTgyMDMuaG9zdGluZ2Vyc2l0ZS5jb20vYXBpL3VzZXIvbG9naW4iLCJpYXQiOjE3NjMyMjk1ODAsImV4cCI6MTc2MzIzMzE4MCwibmJmIjoxNzYzMjI5NTgwLCJqdGkiOiJEMk9vVWlDVlpteHhGa2NBIiwic3ViIjoiMTAxIiwicHJ2IjoiMjNiZDVjODk0OWY2MDBhZGIzOWU3MDFjNDAwODcyZGI3YTU5NzZmNyJ9.q0TVxzZLS1lkGqlWoW6X1X5rfuuS_HEQALHBBJD7csQ\",\n    \"token_type\": \"bearer\",\n    \"expires_in\": 2592000\n}"
+						}
+					]
+				},
+				{
+					"name": "Send Personal Expenses For Approval",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"month\": 11,\n  \"year\": 2025\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/expenses/personal/send-for-approval",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"expenses",
+								"personal",
+								"send-for-approval"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Personal Expense",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "section",
+									"value": "personal",
+									"type": "text"
+								},
+								{
+									"key": "marketing_person_name",
+									"value": "John Doe",
+									"type": "text"
+								},
+								{
+									"key": "amount",
+									"value": "1500.50",
+									"type": "text"
+								},
+								{
+									"key": "from_date",
+									"value": "2025-11-01",
+									"type": "text"
+								},
+								{
+									"key": "to_date",
+									"value": "2025-11-30",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "Taxi and meals",
+									"type": "text"
+								},
+								{
+									"key": "pdf",
+									"description": "Attach a receipt file if you have one. Leave as-is to pick the file manually each time.",
+									"type": "file",
+									"src": "C:\\path\\to\\receipt.pdf"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/expenses",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"expenses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Personal Expenses",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/expenses?section=personal&month=11&year=2025",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"expenses"
+							],
+							"query": [
+								{
+									"key": "section",
+									"value": "personal"
+								},
+								{
+									"key": "month",
+									"value": "11"
+								},
+								{
+									"key": "year",
+									"value": "2025"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Calls used by the mobile app after logging in as a regular user."
+		},
+		{
+			"name": "Admin Endpoints",
+			"item": [
+				{
+					"name": "List Pending Personal Summaries",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminAuthToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/expenses?section=personal&status=pending",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"expenses"
+							],
+							"query": [
+								{
+									"key": "section",
+									"value": "personal"
+								},
+								{
+									"key": "status",
+									"value": "pending"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Approve Personal Expenses",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminAuthToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"approved_amount\": 500,\n  \"approval_note\": \"Approved via Postman\",\n  \"group_ids\": [101, 102, 103]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/admin/expenses/{{sampleExpenseId}}/approve",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"expenses",
+								"{{sampleExpenseId}}",
+								"approve"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Personal Expenses",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminAuthToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"approval_note\": \"Receipts missing\",\n  \"group_ids\": [101, 102]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/admin/expenses/{{sampleExpenseId}}/reject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"expenses",
+								"{{sampleExpenseId}}",
+								"reject"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Calls for reviewers using the admin JWT guard."
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://your-server.example.com/api"
+		},
+		{
+			"key": "authToken",
+			"value": "<paste-user-jwt-token>"
+		},
+		{
+			"key": "adminAuthToken",
+			"value": "<paste-admin-jwt-token>"
+		},
+		{
+			"key": "sampleExpenseId",
+			"value": "123"
+		},
+		{
+			"key": "BASE_URL",
+			"value": "",
+			"type": "default"
+		}
+	]
+}

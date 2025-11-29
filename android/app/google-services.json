@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "828166119765",
+    "project_id": "genlab-edaa4",
+    "storage_bucket": "genlab-edaa4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:828166119765:android:d48dcbe34704209a354fdc",
+        "android_client_info": {
+          "package_name": "pny.app.itl"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB99RTkIiI7O4va7izQBuSwlhh5eLPzRxw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
