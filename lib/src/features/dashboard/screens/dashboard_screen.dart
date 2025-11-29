@@ -9,6 +9,8 @@ import 'package:itl/src/features/chat/screens/chat_list_screen.dart';
 import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/features/auth/screens/login_page.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
+import 'package:itl/src/features/bookings/screens/bookings_screen.dart';
+import 'package:itl/src/features/expenses/screens/expenses_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,6 +24,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final PusherService _pusherService = PusherService();
   late StreamSubscription<PusherEvent> _eventSubscription;
   int _totalUnreadCount = 0;
+
+  bool get _isUser => _apiService.userType == 'user';
 
   @override
   void initState() {
@@ -175,6 +179,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const ListTile(leading: Icon(Icons.home), title: Text('Home')),
+            if (_isUser)
+              ListTile(
+                leading: const Icon(Icons.calendar_today_outlined),
+                title: const Text('Bookings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const BookingsScreen(),
+                    ),
+                  );
+                },
+              ),
+            if (_isUser)
+              ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text('Expenses'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const ExpensesScreen(),
+                    ),
+                  );
+                },
+              ),
             const ListTile(
               leading: Icon(Icons.settings),
               title: Text('Settings'),

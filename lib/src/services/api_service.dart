@@ -4,11 +4,23 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
+  // Make ApiService a singleton so token/state is shared across the app
+  static final ApiService _instance = ApiService._internal();
+  factory ApiService() => _instance;
+  ApiService._internal();
+
   final String _baseUrl =
       "https://mediumslateblue-hummingbird-258203.hostingersite.com/api";
   String? _token;
   String? _userType;
   int? _userId;
+  String? _userCode; // marketing person code for normal users
+  String? _userName;
+
+  // Public method to load persisted token/state; can be awaited at app startup
+  Future<void> ensureInitialized() async {
+    await _loadToken();
+  }
 
   Future<void> _loadToken() async {
     if (_token == null) {
@@ -16,11 +28,15 @@ class ApiService {
       _token = prefs.getString('access_token');
       _userType = prefs.getString('user_type');
       _userId = prefs.getInt('user_id');
+      _userCode = prefs.getString('user_code');
+      _userName = prefs.getString('user_name');
     }
   }
 
   int? get currentUserId => _userId;
   String? get userType => _userType;
+  String? get userCode => _userCode;
+  String? get userName => _userName;
 
   Map<String, String> _defaultHeaders({bool includeAuth = false}) {
     final headers = <String, String>{'Content-Type': 'application/json'};
@@ -84,6 +100,58 @@ class ApiService {
       if (kDebugMode) debugPrint('Error decoding token expiry: $e');
     }
     return null;
+  }
+
+  String _formatDateParam(DateTime date) {
+    final iso = date.toIso8601String();
+    final separatorIndex = iso.indexOf('T');
+    return separatorIndex == -1 ? iso : iso.substring(0, separatorIndex);
+  }
+
+  Future<Map<String, dynamic>?> _sendExpenseMultipart(
+    String method,
+    String url,
+    Map<String, String> fields, {
+    String? receiptFilePath,
+  }) async {
+    await _loadToken();
+    await _ensureTokenValid();
+
+    Future<http.StreamedResponse> makeRequest() async {
+      final request = http.MultipartRequest(method, Uri.parse(url));
+      if (_token != null) {
+        request.headers['Authorization'] = 'Bearer $_token';
+      }
+      request.fields.addAll(fields);
+      if (receiptFilePath != null && receiptFilePath.isNotEmpty) {
+        final file = await http.MultipartFile.fromPath('pdf', receiptFilePath);
+        request.files.add(file);
+      }
+      return request.send();
+    }
+
+    var response = await makeRequest();
+
+    if (response.statusCode == 401) {
+      final didRefresh = await refreshToken();
+      if (didRefresh) {
+        response = await makeRequest();
+      }
+    }
+
+    final responseBody = await response.stream.bytesToString();
+    Map<String, dynamic>? decoded;
+    try {
+      final jsonMap = jsonDecode(responseBody);
+      if (jsonMap is Map<String, dynamic>) {
+        decoded = jsonMap;
+      }
+    } catch (_) {}
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return decoded;
+    }
+    return decoded;
   }
 
   // If token is present and expiring soon, attempt a refresh.
@@ -206,10 +274,25 @@ class ApiService {
       _token = parsedBody['access_token'];
       _userType = userType;
 
-      if (parsedBody.containsKey('user') && parsedBody['user']['id'] != null) {
-        _userId = parsedBody['user']['id'];
+      Map<String, dynamic>? userMap;
+      if (parsedBody.containsKey('user') && parsedBody['user'] is Map) {
+        userMap = Map<String, dynamic>.from(parsedBody['user']);
+      }
+
+      if (userMap != null && userMap['id'] != null) {
+        _userId = userMap['id'];
+        _userName = _extractUserName(userMap);
+        // Capture user_code/marketing code for normal users if present
+        if (userType == 'user') {
+          _userCode = (userMap['user_code'] ?? userMap['code'] ?? identifier)
+              .toString();
+        } else {
+          _userCode = null;
+        }
       } else {
         _userId = _getUserIdFromToken(_token!);
+        _userCode = userType == 'user' ? identifier : null;
+        _userName = null;
       }
 
       final prefs = await SharedPreferences.getInstance();
@@ -219,6 +302,16 @@ class ApiService {
         await prefs.setInt('user_id', _userId!);
       } else {
         await prefs.remove('user_id');
+      }
+      if (_userCode != null && userType == 'user') {
+        await prefs.setString('user_code', _userCode!);
+      } else {
+        await prefs.remove('user_code');
+      }
+      if (_userName != null) {
+        await prefs.setString('user_name', _userName!);
+      } else {
+        await prefs.remove('user_name');
       }
 
       return {'success': true, 'statusCode': status, 'body': parsedBody};
@@ -513,8 +606,16 @@ class ApiService {
           _token = data['access_token'];
 
           // Try to obtain user id from returned body if provided, otherwise decode token
-          if (data.containsKey('user') && data['user']?['id'] != null) {
-            _userId = data['user']['id'];
+          if (data.containsKey('user') && data['user'] is Map) {
+            final userMap = Map<String, dynamic>.from(data['user']);
+            if (userMap['id'] != null) {
+              _userId = userMap['id'];
+            }
+            if (_userType == 'user') {
+              _userCode = (userMap['user_code'] ?? userMap['code'] ?? _userCode)
+                  .toString();
+            }
+            _userName = _extractUserName(userMap) ?? _userName;
           } else {
             final id = _getUserIdFromToken(_token!);
             if (id != null) _userId = id;
@@ -528,6 +629,12 @@ class ApiService {
             await prefs.setInt('user_id', _userId!);
           } else {
             await prefs.remove('user_id');
+          }
+          if (_userCode != null && _userType == 'user') {
+            await prefs.setString('user_code', _userCode!);
+          }
+          if (_userName != null) {
+            await prefs.setString('user_name', _userName!);
           }
 
           return true;
@@ -558,14 +665,358 @@ class ApiService {
     }
     return [];
   }
+  
+  Future<void> updateDeviceToken(String deviceToken) async {
+    // Only update if logged in
+    if (_token == null) return;
+
+    final url = _userType == 'admin'
+        ? '$_baseUrl/admin/device-token'
+        : '$_baseUrl/user/device-token';
+    final body = {'device_token': deviceToken};
+
+    try {
+      final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
+      if (response.statusCode == 200) {
+        if (kDebugMode) {
+          print('Successfully updated device token.');
+        }
+      } else {
+        if (kDebugMode) {
+          print('Failed to update device token: ${response.body}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error updating device token: $e');
+      }
+    }
+  }
 
   Future<void> logout() async {
     _token = null;
     _userType = null;
     _userId = null;
+    _userCode = null;
+    _userName = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('access_token');
     await prefs.remove('user_type');
     await prefs.remove('user_id');
+    await prefs.remove('user_code');
+    await prefs.remove('user_name');
+  }
+
+  String? _extractUserName(Map<String, dynamic> userMap) {
+    const keys = ['name', 'full_name', 'marketing_person_name', 'person_name'];
+    for (final key in keys) {
+      final value = userMap[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return null;
+  }
+
+  // ===== Marketing person bookings/invoices endpoints =====
+
+  /// Helper to build marketing-person scoped URL using the current user's marketing user_code.
+  /// Only valid for non-admin users.
+  String _marketingPersonPath(String path) {
+    if (_userType != 'user' || _userCode == null) {
+      throw StateError('Marketing-person endpoints are only for user logins');
+    }
+    final code = _userCode!;
+    return '$_baseUrl/marketing-person/$code$path';
+  }
+
+  /// Fetch all bookings with optional filters.
+  /// Mirrors: GET /marketing-person/{user_code}/bookings
+  Future<Map<String, dynamic>> fetchBookings({
+    String? paymentOption, // without_bill / with_bill
+    String? invoiceStatus, // not_generated
+    int? year,
+    int? month,
+    int page = 1,
+  }) async {
+    final query = <String, String>{'page': page.toString()};
+    if (paymentOption != null) query['payment_option'] = paymentOption;
+    if (invoiceStatus != null) query['invoice_status'] = invoiceStatus;
+    if (year != null) query['year'] = year.toString();
+    if (month != null) query['month'] = month.toString().padLeft(2, '0');
+
+    final uri = Uri.parse(_marketingPersonPath('/bookings'))
+        .replace(queryParameters: query);
+    final response = await _sendHttpWithAuthAndRetry('GET', uri.toString());
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+    }
+    return {};
+  }
+
+  /// Fetch bookings without bill / cash status.
+  /// Mirrors: GET /marketing-person/{user_code}/bookings/without-bill
+  Future<Map<String, dynamic>> fetchWithoutBillBookings({
+    int? withPayment, // 1 -> with cash payment
+    int? transactionStatus, // 0 / 1
+    int? year,
+    int? month,
+    int page = 1,
+  }) async {
+    final query = <String, String>{'page': page.toString()};
+    if (withPayment != null) query['with_payment'] = withPayment.toString();
+    if (transactionStatus != null) {
+      query['transaction_status'] = transactionStatus.toString();
+    }
+    if (year != null) query['year'] = year.toString();
+    if (month != null) query['month'] = month.toString().padLeft(2, '0');
+
+    final uri = Uri.parse(_marketingPersonPath('/bookings/without-bill'))
+        .replace(queryParameters: query);
+    final response = await _sendHttpWithAuthAndRetry('GET', uri.toString());
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+    }
+    return {};
+  }
+
+  /// Fetch invoices generated for marketing person's bookings.
+  /// Mirrors: GET /marketing-person/{user_code}/invoices
+  Future<Map<String, dynamic>> fetchInvoices({
+    String? status, // paid / unpaid / pending
+    String? type, // tax_invoice / other
+    int? year,
+    int? month,
+    int page = 1,
+  }) async {
+    final query = <String, String>{'page': page.toString()};
+    if (status != null) query['status'] = status;
+    if (type != null) query['type'] = type;
+    if (year != null) query['year'] = year.toString();
+    if (month != null) query['month'] = month.toString().padLeft(2, '0');
+
+    final uri = Uri.parse(_marketingPersonPath('/invoices'))
+        .replace(queryParameters: query);
+    final response = await _sendHttpWithAuthAndRetry('GET', uri.toString());
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+    }
+    return {};
+  }
+
+  /// Fetch all invoice payment transactions.
+  /// Mirrors: GET /marketing-person/{user_code}/invoice-transactions
+  Future<Map<String, dynamic>> fetchInvoiceTransactions({
+    int? year,
+    int? month,
+    int page = 1,
+  }) async {
+    final query = <String, String>{'page': page.toString()};
+    if (year != null) query['year'] = year.toString();
+    if (month != null) query['month'] = month.toString().padLeft(2, '0');
+
+    final uri = Uri.parse(_marketingPersonPath('/invoice-transactions'))
+        .replace(queryParameters: query);
+    final response = await _sendHttpWithAuthAndRetry('GET', uri.toString());
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+    }
+    return {};
+  }
+
+  /// Fetch all cash transactions deposited by the marketing person.
+  /// Mirrors: GET /marketing-person/{user_code}/cash-transactions
+  Future<Map<String, dynamic>> fetchCashTransactions({
+    int? transactionStatus, // 0 / 1
+    int? year,
+    int? month,
+    int page = 1,
+  }) async {
+    final query = <String, String>{'page': page.toString()};
+    if (transactionStatus != null) {
+      query['transaction_status'] = transactionStatus.toString();
+    }
+    if (year != null) query['year'] = year.toString();
+    if (month != null) query['month'] = month.toString().padLeft(2, '0');
+
+    final uri = Uri.parse(_marketingPersonPath('/cash-transactions'))
+        .replace(queryParameters: query);
+    final response = await _sendHttpWithAuthAndRetry('GET', uri.toString());
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+    }
+    return {};
+  }
+
+  // ===== Expenses endpoints =====
+
+  Future<Map<String, dynamic>> fetchExpenses({
+    String? section,
+    String? status,
+    int? month,
+    int? year,
+    String? search,
+    bool? groupPersonal,
+    int page = 1,
+    int? perPage,
+  }) async {
+    final query = <String, String>{'page': page.toString()};
+    if (section != null && section.isNotEmpty) query['section'] = section;
+    if (status != null && status.isNotEmpty) query['status'] = status;
+    if (month != null) query['month'] = month.toString();
+    if (year != null) query['year'] = year.toString();
+    if (search != null && search.isNotEmpty) query['search'] = search;
+    if (groupPersonal != null) {
+      query['group_personal'] = groupPersonal ? '1' : '0';
+    }
+    if (perPage != null) query['per_page'] = perPage.toString();
+
+    final uri = Uri.parse('$_baseUrl/expenses').replace(queryParameters: query);
+    final response = await _sendHttpWithAuthAndRetry('GET', uri.toString());
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>?> getExpense(int expenseId) async {
+    final url = '$_baseUrl/expenses/$expenseId';
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> createExpense({
+    String? section,
+    String? marketingPersonCode,
+    String? marketingPersonName,
+    String? personName,
+    required double amount,
+    required DateTime fromDate,
+    required DateTime toDate,
+    String? description,
+    String? receiptFilePath,
+  }) async {
+    final fields = <String, String>{
+      'amount': amount.toStringAsFixed(2),
+      'from_date': _formatDateParam(fromDate),
+      'to_date': _formatDateParam(toDate),
+    };
+    if (section != null && section.isNotEmpty) {
+      fields['section'] = section;
+    }
+    if (marketingPersonCode != null && marketingPersonCode.isNotEmpty) {
+      fields['marketing_person_code'] = marketingPersonCode;
+    }
+    if (marketingPersonName != null && marketingPersonName.isNotEmpty) {
+      fields['marketing_person_name'] = marketingPersonName;
+      fields['person_name'] = marketingPersonName;
+    }
+    if (personName != null && personName.isNotEmpty) {
+      fields['person_name'] = personName;
+      fields['marketing_person_name'] =
+          fields['marketing_person_name'] ?? personName;
+    }
+    if (description != null && description.isNotEmpty) {
+      fields['description'] = description;
+    }
+
+    return _sendExpenseMultipart(
+      'POST',
+      '$_baseUrl/expenses',
+      fields,
+      receiptFilePath: receiptFilePath,
+    );
+  }
+
+  Future<Map<String, dynamic>?> updatePersonalExpense({
+    required int expenseId,
+    required double amount,
+    required DateTime fromDate,
+    required DateTime toDate,
+    String? marketingPersonName,
+    String? personName,
+    String? description,
+    String? receiptFilePath,
+  }) async {
+    final fields = <String, String>{
+      'amount': amount.toStringAsFixed(2),
+      'from_date': _formatDateParam(fromDate),
+      'to_date': _formatDateParam(toDate),
+      'section': 'personal',
+    };
+    if (marketingPersonName != null && marketingPersonName.isNotEmpty) {
+      fields['marketing_person_name'] = marketingPersonName;
+      fields['person_name'] = marketingPersonName;
+    }
+    if (personName != null && personName.isNotEmpty) {
+      fields['person_name'] = personName;
+      fields['marketing_person_name'] =
+          fields['marketing_person_name'] ?? personName;
+    }
+    if (description != null && description.isNotEmpty) {
+      fields['description'] = description;
+    }
+
+    return _sendExpenseMultipart(
+      'POST',
+      '$_baseUrl/expenses/$expenseId',
+      {
+        ...fields,
+        '_method': 'PUT',
+      },
+      receiptFilePath: receiptFilePath,
+    );
+  }
+
+  Future<bool> deletePersonalExpense(int expenseId) async {
+    final url = '$_baseUrl/expenses/$expenseId';
+    final response = await _sendHttpWithAuthAndRetry('DELETE', url);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        if (data['success'] == true) return true;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  Future<Map<String, dynamic>?> sendPersonalExpensesForApproval({
+    int? month,
+    int? year,
+  }) async {
+    final body = <String, dynamic>{};
+    if (month != null) body['month'] = month;
+    if (year != null) body['year'] = year;
+
+    final response = await _sendHttpWithAuthAndRetry(
+      'POST',
+      '$_baseUrl/expenses/personal/send-for-approval',
+      body: body,
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+    }
+    return null;
   }
 }
