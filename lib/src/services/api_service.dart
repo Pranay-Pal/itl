@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -312,6 +313,25 @@ class ApiService {
         await prefs.setString('user_name', _userName!);
       } else {
         await prefs.remove('user_name');
+      }
+
+      // After successful login, get and send the device token.
+      try {
+        final fcmToken = await FirebaseMessaging.instance.getToken();
+        if (fcmToken != null) {
+          if (kDebugMode) {
+            print("========================================================");
+            print("==  LOGGED IN: SENDING DEVICE TOKEN TO BACKEND   ==");
+            print("========================================================");
+            print("FCM Token: $fcmToken");
+            print("========================================================");
+          }
+          await updateDeviceToken(fcmToken);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print("Error getting or sending FCM token: $e");
+        }
       }
 
       return {'success': true, 'statusCode': status, 'body': parsedBody};
@@ -667,13 +687,22 @@ class ApiService {
   }
   
   Future<void> updateDeviceToken(String deviceToken) async {
-    // Only update if logged in
-    if (_token == null) return;
+    // Only update if logged in and user ID is available
+    if (_token == null || _userId == null) {
+      if (kDebugMode) {
+        print("updateDeviceToken skipped: User not logged in or user ID is missing.");
+      }
+      return;
+    }
 
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/device-token'
         : '$_baseUrl/user/device-token';
-    final body = {'device_token': deviceToken};
+    
+    final body = {
+      'user_id': _userId,
+      'device_token': deviceToken,
+    };
 
     try {
       final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
@@ -694,17 +723,37 @@ class ApiService {
   }
 
   Future<void> logout() async {
-    _token = null;
-    _userType = null;
-    _userId = null;
-    _userCode = null;
-    _userName = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('access_token');
-    await prefs.remove('user_type');
-    await prefs.remove('user_id');
-    await prefs.remove('user_code');
-    await prefs.remove('user_name');
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null) {
+        if (kDebugMode) {
+          print("Logging out: Invalidating device token on backend.");
+        }
+        final url = _userType == 'admin'
+            ? '$_baseUrl/admin/logout'
+            : '$_baseUrl/user/logout';
+        final body = {'device_token': fcmToken};
+        // No need to await, fire and forget
+        _sendHttpWithAuthAndRetry('POST', url, body: body);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error sending device token to logout endpoint: $e");
+      }
+    } finally {
+      // Always clear local data to complete logout on the client.
+      _token = null;
+      _userType = null;
+      _userId = null;
+      _userCode = null;
+      _userName = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('access_token');
+      await prefs.remove('user_type');
+      await prefs.remove('user_id');
+      await prefs.remove('user_code');
+      await prefs.remove('user_name');
+    }
   }
 
   String? _extractUserName(Map<String, dynamic> userMap) {

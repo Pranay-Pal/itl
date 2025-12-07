@@ -49,9 +49,8 @@ Future<void> main() async {
 
   await PusherService().initPusher();
 
-  // Request permission and get token
-  final messaging = FirebaseMessaging.instance;
-  final settings = await messaging.requestPermission(
+  // Request notification permission early
+  await FirebaseMessaging.instance.requestPermission(
     alert: true,
     announcement: false,
     badge: true,
@@ -60,29 +59,6 @@ Future<void> main() async {
     provisional: false,
     sound: true,
   );
-
-  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    if (kDebugMode) {
-      print('User granted permission');
-    }
-    final fcmToken = await messaging.getToken();
-    if (kDebugMode) {
-      print("========================================================");
-      print("==========          FCM DEVICE TOKEN          ==========");
-      print("========================================================");
-      print(fcmToken);
-      print("========================================================");
-      print("^^^ SEND THIS TOKEN TO YOUR BACKEND TEAM FOR TESTING ^^^");
-      print("========================================================");
-    }
-    if (fcmToken != null) {
-      await apiService.updateDeviceToken(fcmToken);
-    }
-  } else {
-    if (kDebugMode) {
-      print('User declined or has not accepted permission');
-    }
-  }
 
   runApp(const MyApp());
 }
