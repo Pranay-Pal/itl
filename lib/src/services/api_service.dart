@@ -10,12 +10,13 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  final String _baseUrl =
+  static const String baseUrl =
       "https://mediumslateblue-hummingbird-258203.hostingersite.com/api";
+  final String _baseUrl = baseUrl;
   String? _token;
   String? _userType;
   int? _userId;
-  String? _userCode; // marketing person code for normal users
+  String? _userCode; 
   String? _userName;
 
   // Public method to load persisted token/state; can be awaited at app startup
@@ -38,6 +39,7 @@ class ApiService {
   String? get userType => _userType;
   String? get userCode => _userCode;
   String? get userName => _userName;
+  String? get token => _token;
 
   Map<String, String> _defaultHeaders({bool includeAuth = false}) {
     final headers = <String, String>{'Content-Type': 'application/json'};
@@ -466,6 +468,13 @@ class ApiService {
       request.fields['group_id'] = groupId.toString();
       request.fields['type'] = type;
 
+      if (kDebugMode) {
+        debugPrint('--- API UPLOAD REQUEST ---');
+        debugPrint('URL: $url');
+        debugPrint('Type: $type');
+        debugPrint('Path: $filePath');
+      }
+
       final file = await http.MultipartFile.fromPath('file', filePath);
       request.files.add(file);
 
@@ -482,6 +491,7 @@ class ApiService {
 
     // If unauthorized, try refreshing and retry once.
     if (response.statusCode == 401) {
+      debugPrint("Upload 401, refreshing token...");
       final didRefresh = await refreshToken();
       if (didRefresh) {
         response = await makeRequest();
@@ -490,7 +500,18 @@ class ApiService {
 
     if (response.statusCode == 201) {
       final responseBody = await response.stream.bytesToString();
+      if (kDebugMode) {
+        debugPrint('--- UPLOAD SUCCESS ---');
+        debugPrint('Body: $responseBody');
+      }
       return jsonDecode(responseBody);
+    } else {
+      final body = await response.stream.bytesToString();
+      if (kDebugMode) {
+        debugPrint('--- UPLOAD FAILED ---');
+        debugPrint('Status: ${response.statusCode}');
+        debugPrint('Body: $body');
+      }
     }
     return null;
   }
@@ -685,12 +706,13 @@ class ApiService {
     }
     return [];
   }
-  
+
   Future<void> updateDeviceToken(String deviceToken) async {
     // Only update if logged in and user ID is available
     if (_token == null || _userId == null) {
       if (kDebugMode) {
-        print("updateDeviceToken skipped: User not logged in or user ID is missing.");
+        print(
+            "updateDeviceToken skipped: User not logged in or user ID is missing.");
       }
       return;
     }
@@ -698,7 +720,7 @@ class ApiService {
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/device-token'
         : '$_baseUrl/user/device-token';
-    
+
     final body = {
       'user_id': _userId,
       'device_token': deviceToken,

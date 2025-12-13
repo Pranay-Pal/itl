@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:itl/src/common/screens/splash_screen.dart';
+import 'package:itl/src/config/theme.dart';
 import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/services/pusher_service.dart';
+import 'package:itl/src/services/shared_intent_service.dart';
+import 'package:itl/src/services/theme_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -47,7 +50,11 @@ Future<void> main() async {
   final apiService = ApiService();
   await apiService.ensureInitialized();
 
+  // Start handling shared intents (e.g. Receive Share from other apps)
+  await SharedIntentService().start();
+
   await PusherService().initPusher();
+  await ThemeService().loadTheme();
 
   // Request notification permission early
   await FirebaseMessaging.instance.requestPermission(
@@ -68,9 +75,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      title: 'ITL',
-      home: SplashScreen(),
+    return AnimatedBuilder(
+      animation: ThemeService(),
+      builder: (context, child) {
+        return MaterialApp(
+          title: 'ITL',
+          theme: lightTheme,
+          darkTheme: darkTheme,
+          themeMode: ThemeService().themeMode,
+          home: const SplashScreen(),
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }

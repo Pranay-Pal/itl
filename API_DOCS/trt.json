@@ -1,0 +1,209 @@
+{
+  "info": {
+    "name": "Marketing Dashboard API",
+    "version": "1.0.0",
+    "description": "Postman collection for Marketing Dashboard endpoints (GenLab)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "user_code", "value": "MKT001" },
+    { "key": "month", "value": "" },
+    { "key": "year", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "auth_password", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-login if token is missing (collection-level).",
+          "const token = pm.variables.get('token') || pm.environment.get('token');",
+          "if (!token) {",
+          "  const userCode = pm.variables.get('user_code') || pm.environment.get('user_code');",
+          "  const password = pm.variables.get('auth_password') || pm.environment.get('auth_password');",
+          "  const base = pm.variables.get('base_url') || pm.environment.get('base_url');",
+          "  if (userCode && password) {",
+          "    pm.sendRequest({",
+          "      url: base + '/api/user/login',",
+          "      method: 'POST',",
+          "      header: { 'Content-Type': 'application/json' },",
+          "      body: { mode: 'raw', raw: JSON.stringify({ user_code: userCode, password: password }) }",
+          "    }, function (err, res) {",
+          "      if (!err && res && res.code === 200) {",
+          "        try { const j = res.json(); if (j.access_token) { pm.environment.set('token', j.access_token); console.log('Auto-login stored token'); } } catch(e) { console.log('Auto-login parse failed'); }",
+          "      } else {",
+          "        console.log('Auto-login failed', err || (res && res.code));",
+          "      }",
+          "    });",
+          "  } else {",
+          "    // No password/configured; skip auto-login",
+          "  }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_code\": \"MKT001\",\n  \"password\": \"your_password_here\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/user/login",
+          "host": ["{{base_url}}"],
+          "path": ["api","user","login"]
+        },
+        "description": "Login with marketing user credentials. Replace password value before running."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const res = pm.response.json();",
+              "if (res && res.access_token) {",
+              "  pm.environment.set('token', res.access_token);",
+              "  console.log('Set token variable');",
+              "} else {",
+              "  console.log('Login did not return access_token');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard - Overview",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}", "type": "text", "disabled": false }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/marketing-dashboard/{{user_code}}/overview?month={{month}}&year={{year}}",
+          "host": ["{{base_url}}"],
+          "path": ["api","marketing-dashboard","{{user_code}}","overview"],
+          "query": [
+            { "key": "month", "value": "{{month}}" },
+            { "key": "year", "value": "{{year}}" }
+          ]
+        },
+        "description": "Full KPI payload for the marketing dashboard. Optional month/year filters."
+      }
+    },
+    {
+      "name": "Dashboard - Summary",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}", "type": "text", "disabled": false }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/marketing-dashboard/{{user_code}}/summary?month={{month}}&year={{year}}",
+          "host": ["{{base_url}}"],
+          "path": ["api","marketing-dashboard","{{user_code}}","summary"],
+          "query": [
+            { "key": "month", "value": "{{month}}" },
+            { "key": "year", "value": "{{year}}" }
+          ]
+        },
+        "description": "Compact KPIs for header widgets."
+      }
+    },
+    {
+      "name": "Bookings - List",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}", "type": "text", "disabled": false } ],
+        "url": {
+          "raw": "{{base_url}}/api/marketing-person/{{user_code}}/bookings?month={{month}}&year={{year}}",
+          "host": ["{{base_url}}"],
+          "path": ["api","marketing-person","{{user_code}}","bookings"],
+          "query": [ { "key": "month", "value": "{{month}}" }, { "key": "year", "value": "{{year}}" } ]
+        },
+        "description": "Paginated bookings for a marketing person. Add payment_option or invoice_status=not_generated as needed."
+      }
+    },
+    {
+      "name": "Bookings - Without Bill",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}", "type": "text", "disabled": false } ],
+        "url": {
+          "raw": "{{base_url}}/api/marketing-person/{{user_code}}/bookings/without-bill?month={{month}}&year={{year}}",
+          "host": ["{{base_url}}"],
+          "path": ["api","marketing-person","{{user_code}}","bookings","without-bill"],
+          "query": [ { "key": "month", "value": "{{month}}" }, { "key": "year", "value": "{{year}}" } ]
+        },
+        "description": "Bookings with payment_option=without_bill. Use with_payment=1 to fetch those with payment records."
+      }
+    },
+    {
+      "name": "Invoices - List",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}", "type": "text", "disabled": false } ],
+        "url": {
+          "raw": "{{base_url}}/api/marketing-person/{{user_code}}/invoices?type=tax_invoice&month={{month}}&year={{year}}",
+          "host": ["{{base_url}}"],
+          "path": ["api","marketing-person","{{user_code}}","invoices"],
+          "query": [ { "key": "type", "value": "tax_invoice" }, { "key": "month", "value": "{{month}}" }, { "key": "year", "value": "{{year}}" } ]
+        },
+        "description": "Invoices (tax or proforma). Use status or type to filter."
+      }
+    },
+    {
+      "name": "Invoice Transactions",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}", "type": "text", "disabled": false } ],
+        "url": {
+          "raw": "{{base_url}}/api/marketing-person/{{user_code}}/invoice-transactions?month={{month}}&year={{year}}",
+          "host": ["{{base_url}}"],
+          "path": ["api","marketing-person","{{user_code}}","invoice-transactions"],
+          "query": [ { "key": "month", "value": "{{month}}" }, { "key": "year", "value": "{{year}}" } ]
+        },
+        "description": "Invoice transactions (payments) for marketing person."
+      }
+    },
+    {
+      "name": "Cash Transactions",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}", "type": "text", "disabled": false } ],
+        "url": {
+          "raw": "{{base_url}}/api/marketing-person/{{user_code}}/cash-transactions?transaction_status=1&month={{month}}&year={{year}}",
+          "host": ["{{base_url}}"],
+          "path": ["api","marketing-person","{{user_code}}","cash-transactions"],
+          "query": [ { "key": "transaction_status", "value": "1" }, { "key": "month", "value": "{{month}}" }, { "key": "year", "value": "{{year}}" } ]
+        },
+        "description": "Cash letter transactions for marketing person. Use transaction_status filter."
+      }
+    }
+    ,
+    {
+      "name": "Clients - List",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}", "type": "text", "disabled": false } ],
+        "url": {
+          "raw": "{{base_url}}/api/marketing-person/{{user_code}}/clients?per_page=15",
+          "host": ["{{base_url}}"],
+          "path": ["api","marketing-person","{{user_code}}","clients"],
+          "query": [ { "key": "per_page", "value": "15" } ]
+        },
+        "description": "Distinct clients associated with the marketing person's bookings. Supports per_page pagination."
+      }
+    }
+  ]
+}

@@ -9,7 +9,7 @@ import 'package:itl/src/features/chat/screens/chat_list_screen.dart';
 import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/features/auth/screens/login_page.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
-import 'package:itl/src/features/bookings/screens/bookings_screen.dart';
+import 'package:itl/src/features/bookings/bookings.dart';
 import 'package:itl/src/features/expenses/screens/expenses_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -187,7 +187,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Navigator.of(context).pop();
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => const BookingsScreen(),
+                      builder: (context) =>
+                          const BookingDashboardScreen(userCode: 'MKT001'),
                     ),
                   );
                 },

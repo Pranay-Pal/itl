@@ -1,7 +1,10 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 String _sanitizeUrl(String url) => url.replaceAll('\\', '');
 
@@ -15,12 +18,29 @@ Future<String> _filenameFromUrl(String url) async {
 
 Future<String?> downloadToCache(String url, {String? fileName}) async {
   try {
+    debugPrint('Checking cache for $url...');
     final dir = await getTemporaryDirectory();
     final name = fileName ?? await _filenameFromUrl(url);
     final filePath = '${dir.path}/$name';
-    await Dio().download(_sanitizeUrl(url), filePath);
+
+    final file = File(filePath);
+    if (await file.exists()) {
+      debugPrint('Cache hit: $filePath');
+      return filePath;
+    }
+
+    debugPrint('Downloading to $filePath...');
+    await Dio().download(
+      _sanitizeUrl(url),
+      filePath,
+      options: Options(
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 30)),
+    );
+    debugPrint('Download complete: $filePath');
     return filePath;
-  } catch (_) {
+  } catch (e) {
+    debugPrint('Download error: $e');
     return null;
   }
 }
@@ -44,9 +64,35 @@ Future<void> shareFileFromUrl(String url, {String? text}) async {
   }
 }
 
-Future<void> downloadFile(String url) async {
-  final dir = await getApplicationDocumentsDirectory();
+Future<String> downloadFile(String url) async {
+  String? savePath;
   final name = await _filenameFromUrl(url);
-  final filePath = '${dir.path}/$name';
-  await Dio().download(_sanitizeUrl(url), filePath);
+
+  if (Platform.isAndroid) {
+    // Check permissions
+    var status = await Permission.storage.status;
+    if (!status.isGranted) {
+      status = await Permission.storage.request();
+    }
+
+    // Fallback or explicit path
+    // Note: On Android 11+ scoped storage usually allows writing to Downloads without dangerous permissions
+    // if using MediaStore, but direct path writing might need MANAGE_EXTERNAL_STORAGE or just work for public dirs.
+    // We'll try the standard legacy path first which works on most phones for this use case.
+    savePath = '/storage/emulated/0/Download/$name';
+  } else {
+    final dir = await getApplicationDocumentsDirectory();
+    savePath = '${dir.path}/$name';
+  }
+
+  debugPrint('downloadFile: Saving to $savePath');
+
+  await Dio().download(_sanitizeUrl(url), savePath,
+      onReceiveProgress: (rec, total) {
+    if (total != -1) {
+      debugPrint('Downloading: ${(rec / total * 100).toStringAsFixed(0)}%');
+    }
+  });
+
+  return savePath;
 }

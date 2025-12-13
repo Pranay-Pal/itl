@@ -1,15 +1,17 @@
 name: itl
 description: "The ITL flutter app."
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0' # Updated SDK constraint for modern packages
+  sdk: ">=3.0.0 <4.0.0" # Updated SDK constraint for modern packages
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  icons_plus: ^5.0.0
+  google_fonts: ^6.1.0
   pusher_channels_flutter: ^2.5.0
   http: ^1.5.0
   shared_preferences: ^2.5.3
@@ -29,6 +31,8 @@ dependencies:
   share_handler: ^0.0.25
   firebase_core: ^4.2.1
   firebase_messaging: ^16.0.4
+  url_launcher: ^6.3.1
+  flutter_pdfview: ^1.3.2
 
 dev_dependencies:
   flutter_test:

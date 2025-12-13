@@ -1,0 +1,218 @@
+# Marketing Dashboard API — Mobile Developer Guide
+
+This document describes the Marketing Dashboard API used by the mobile application. It lists endpoints, authentication, request examples, common query parameters, and sample responses you can share with your developer.
+
+Base URL
+- Example local base: http://127.0.0.1:8000
+
+Authentication
+- JWT-based authentication. Obtain a token using the login endpoint:
+  - POST /api/user/login
+  - Body (form or JSON): user_code, password
+  - Example successful response:
+    json
+    { "access_token": "<token>", "token_type": "bearer", "expires_in": 2592000 }
+    
+  - Use header: Authorization: Bearer <access_token> on protected endpoints.
+
+Required Headers
+- Accept: application/json
+- Authorization: Bearer <token> (for protected routes)
+
+Common query parameters
+- month (1-12)
+- year (YYYY)
+- page (pagination)
+- months (for series endpoints — number of months to return)
+
+Overview of endpoints
+
+*Dashboard endpoints (protected)*
+- GET /api/marketing-dashboard/{user_code}/overview
+  - Returns full KPI set for the marketing person.
+  - Path param: user_code (e.g. MKT001).
+  - Optional query params: month, year.
+  - Response: JSON with status, message, data containing KPIs (examples below).
+
+- GET /api/marketing-dashboard/{user_code}/summary
+  - Compact subset of KPIs for widgets/cards. Same params as overview.
+
+- GET /api/marketing-dashboard/{user_code}/series?months={n}
+  - Time-series data for charts. Returns { labels: [...], series: [...] }.
+  - months defaults to 6 when omitted.
+
+*Marketing-person endpoints (protected, paginated)*
+Prefix: /api/marketing-person/{user_code}
+- GET /bookings — List bookings. Filters: payment_option, invoice_status, month, year, page.
+- GET /bookings/without-bill — Bookings with WITHOUT_BILL payment option.
+- GET /invoices — List invoices. Filters: status, type, month, year, page.
+- GET /invoice-transactions — Invoice payments (paginated).
+- GET /cash-transactions — Cash-letter transactions (paginated).
+- GET /clients — Distinct clients for marketing person (paginated).
+
+Pagination notes
+- Endpoints returning lists use Laravel paginator format. Use the data array for items and current_page/last_page/per_page/total for paging controls.
+
+Sample requests
+- Login (form data):
+  powershell
+  curl.exe -s -X POST -d "user_code=MKT001&password=12345678" "http://127.0.0.1:8000/api/user/login"
+  
+
+- Call Overview (after login):
+  powershell
+  curl.exe -s -H "Authorization: Bearer <token>" "http://127.0.0.1:8000/api/marketing-dashboard/MKT001/overview"
+  
+
+Example responses (trimmed)
+- Overview (200):
+  json
+  {
+    "status": true,
+    "message": "Marketing overview fetched",
+    "data": {
+      "totalBookings": 3180,
+      "totalBookingAmount": 16982290,
+      "billBookings": 2000,
+      "withoutBillBookings": 1084,
+      "allClients": 3,
+      "notGeneratedInvoices": 1996,
+      "totalNotGeneratedInvoicesAmount": 14723550,
+      "transactions": 0,
+      "tdsAmount": 0,
+      "cashUnpaidLetters": 1084,
+      "totalCashUnpaidAmounts": 3991100
+    }
+  }
+  
+
+- Series (200):
+  json
+  { "labels": ["Jul 2025","Aug 2025","Sep 2025","Oct 2025","Nov 2025","Dec 2025"], "series": [0,0,0,0,3180,0] }
+  
+
+Errors
+- 401: { "error": "Unauthorized" } when token missing or invalid.
+- 422: validation errors returned as { "errors": { ... } }.
+- 404: resource not found.
+
+Notes & recommendations
+- All routes are now protected with JWT in this codebase — keep the multi_jwt:api middleware applied.
+- Debug helper routes were removed for security; do not re-add them to production.
+- Standardize JSON error shapes across controllers if you want consistent client handling.
+
+Postman & OpenAPI
+- There is a Postman collection in the repo: postman/Marketing_Dashboard_API.postman_collection.json and an environment postman/Marketing_Dashboard_Env.postman_environment.json preconfigured for local use. Import them into Postman and set the base_url and auth_password as needed.
+
+Next actions (I can do any for you)
+- Export a ZIP containing this doc + Postman collection and environment.
+- Generate an OpenAPI (Swagger) spec for these endpoints.
+- Add a small README with Newman commands to run the collection.
+
+Files referenced
+- app/Http/Controllers/Api/MarketingDashboardController.php
+- routes/api.php
+- postman/Marketing_Dashboard_API.postman_collection.json
+
+---
+If you'd like the ZIP export or the OpenAPI spec, tell me which and I'll produce it now.
+# Marketing Dashboard API
+
+This document describes the API endpoints added for the Marketing Dashboard in the GenLab application. It includes the new dashboard endpoints and the existing marketing-person endpoints that the mobile app already uses.
+
+Base URL
+- Example local base: http://localhost/api
+
+Authentication
+- The routes added by default are public (no middleware applied). In production you should protect them with the project's JWT guard or other auth middleware. To protect the dashboard routes, edit routes/api.php and add the middleware: ->middleware('multi_jwt:api') to the marketing-dashboard route group.
+
+Summary of endpoints
+
+- *GET* /api/marketing-dashboard/{user_code}/overview
+  - Description: Returns full KPI set for a marketing person (used by the dashboard page).
+  - Path params:
+    - user_code (string) — marketing person's unique code (e.g. MARKETING001).
+  - Query params (optional):
+    - month (1-12)
+    - year (YYYY)
+  - Response: JSON with status, message, and data. data contains many numeric KPIs produced by MarketingPersonStatsService::calculate() such as:
+    - totalBookings, billBookings, withoutBillBookings, totalBookingAmount, totalBillBookingAmount, totalWithoutBillBookings, allClients
+    - GeneratedInvoices, GeneratedPIs, totalInvoiceAmount, totalPIAmount
+    - paidInvoices, totalPaidInvoiceAmount, partialTaxInvoices, totalPartialTaxInvoiceAmount, unpaidInvoices, totalUnpaidInvoiceAmount
+    - notGeneratedInvoices, totalNotGeneratedInvoicesAmount
+    - transactions, totalTransactionsAmount, tdsAmount
+    - Cash letter aggregates: cashPaidLetters, totalCashPaidLettersAmount, cashPartialLetters, totalcashPartialLettersAmount, cashSettledLetters, totalCashSettledLettersAmount, cashUnpaidLetters, totalCashUnpaidAmounts
+
+  - Example (PowerShell curl):
+    powershell
+    curl -Uri "http://localhost/api/marketing-dashboard/MARKETING001/overview?month=11&year=2025" -UseBasicParsing
+    
+
+- *GET* /api/marketing-dashboard/{user_code}/summary
+  - Description: Compact subset of KPIs suitable for the top widgets or quick summaries.
+  - Path params and query params: same as overview.
+  - Response: JSON with data containing e.g.:
+    - totalBookings, totalBookingAmount, totalInvoiceAmount, totalUnpaidInvoiceAmount, tdsAmount
+  - Example:
+    powershell
+    curl -Uri "http://localhost/api/marketing-dashboard/MARKETING001/summary" -UseBasicParsing
+    
+
+Reused mobile endpoints (already present)
+- These endpoints are part of the existing marketing-person prefix and return paginated results.
+
+- *GET* /api/marketing-person/{user_code}/bookings
+  - Description: List bookings for marketing person.
+  - Query params: payment_option, invoice_status=not_generated, month, year, page.
+
+- *GET* /api/marketing-person/{user_code}/bookings/without-bill
+  - Description: Bookings with payment_option = without_bill. Accepts with_payment, transaction_status, month, year.
+  - Response includes bookings (paginated) and booking_status_map when applicable.
+
+- *GET* /api/marketing-person/{user_code}/invoices
+  - Description: Invoices for bookings of this marketing person.
+  - Query params: status, type (tax_invoice or proforma_invoice), month, year, page.
+
+- *GET* /api/marketing-person/{user_code}/invoice-transactions
+  - Description: Invoice transactions (payments) for this marketing person.
+  - Query params: month, year, page.
+
+- *GET* /api/marketing-person/{user_code}/cash-transactions
+  - Description: Cash letter transactions for this marketing person.
+  - Query params: transaction_status, month, year, page.
+
+Pagination notes
+- The booking/invoice/transaction endpoints return Laravel paginator objects (standard structure with data, current_page, last_page, per_page, total, links, etc.). Mobile clients should use data for the list and links or current_page/last_page for pagination controls.
+
+Errors
+- On failure the endpoints return standard JSON responses. For example, when user_code is not found the mobile controllers use firstOrFail() which will return a 404 HTML by default — for API clients you may want to wrap queries with try/catch and return JSON 404 responses. Example format suggestion:
+  json
+  { "status": false, "message": "Marketing person not found" }
+  
+
+Extending the API (recommended next steps)
+- Protect endpoints with multi_jwt middleware in routes/api.php:
+  php
+  Route::prefix('marketing-dashboard')->middleware('multi_jwt:api')->group(function () {
+      // routes
+  });
+  
+- Add time-series endpoints for charts (example proposals):
+  - GET /api/marketing-dashboard/{user_code}/invoices/series?months=12 — returns monthly totals for invoices and payments suitable for charts.
+  - GET /api/marketing-dashboard/{user_code}/bookings/series?months=12 — monthly bookings counts/amounts.
+- Return consistent API error shapes (JSON) across all controllers. Convert controller firstOrFail() usage to JSON-friendly not-found responses where appropriate.
+
+OpenAPI / Postman
+- If you need, I can generate a minimal OpenAPI (YAML) file or Postman collection for these endpoints so your app developer can import it quickly.
+
+Files changed/created by this work
+- app/Http/Controllers/Api/MarketingDashboardController.php — new controller (uses MarketingPersonStatsService)
+- routes/api.php — routes registered for marketing-dashboard
+- docs/marketing-dashboard-api.md — this documentation file
+
+If you want, I can now:
+- Add auth middleware to the routes (recommended).
+- Generate an OpenAPI (Swagger) spec or Postman collection.
+- Add time-series chart endpoints.
+
+Tell me which of these you'd like next and I'll implement it.

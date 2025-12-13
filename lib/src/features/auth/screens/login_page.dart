@@ -120,9 +120,22 @@ class _LoginPageState extends State<LoginPage>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? const Color(0xFF0B141A) : Colors.white;
+    final cardColor = isDark ? const Color(0xFF1F2C34) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final hintColor = isDark ? Colors.grey[400] : Colors.grey[600];
+    final inputFillColor =
+        isDark ? const Color(0xFF2A3942) : Colors.grey.shade100;
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       body: Container(
-        decoration: BoxDecoration(gradient: kBlueGradient),
+        decoration: isDark
+            ? null
+            : BoxDecoration(
+                gradient:
+                    kBlueGradient), // Keep gradient for light mode only if desired, or remove
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
@@ -133,7 +146,9 @@ class _LoginPageState extends State<LoginPage>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Colors.white.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: const CircleAvatar(
@@ -146,19 +161,24 @@ class _LoginPageState extends State<LoginPage>
                 Text(
                   'Welcome Back',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
+                        color: isDark
+                            ? Colors.white
+                            : Colors
+                                .white, // In light mode, background is gradient so white is correct
                         fontWeight: FontWeight.bold,
                       ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Sign in to continue to ITL',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.white70),
                 ),
                 const SizedBox(height: 20),
 
                 // Card with inputs
                 Card(
+                  color: cardColor,
                   elevation: 8,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -172,11 +192,14 @@ class _LoginPageState extends State<LoginPage>
                         children: [
                           DropdownButtonFormField<String>(
                             initialValue: _selectedUserType,
+                            dropdownColor: cardColor,
+                            style: TextStyle(color: textColor, fontSize: 16),
                             decoration: InputDecoration(
                               labelText: 'Login as',
-                              prefixIcon: const Icon(Icons.person),
+                              labelStyle: TextStyle(color: hintColor),
+                              prefixIcon: Icon(Icons.person, color: hintColor),
                               filled: true,
-                              fillColor: Colors.grey.shade100,
+                              fillColor: inputFillColor,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12.0),
                                 borderSide: BorderSide.none,
@@ -191,14 +214,16 @@ class _LoginPageState extends State<LoginPage>
                                 _errorMessage = null;
                               });
                             },
-                            items: const [
+                            items: [
                               DropdownMenuItem(
                                 value: 'user',
-                                child: Text('User'),
+                                child: Text('User',
+                                    style: TextStyle(color: textColor)),
                               ),
                               DropdownMenuItem(
                                 value: 'admin',
-                                child: Text('Admin'),
+                                child: Text('Admin',
+                                    style: TextStyle(color: textColor)),
                               ),
                             ],
                           ),
@@ -206,11 +231,13 @@ class _LoginPageState extends State<LoginPage>
                           if (_selectedUserType == 'admin') ...[
                             TextFormField(
                               controller: _emailController,
+                              style: TextStyle(color: textColor),
                               decoration: InputDecoration(
                                 labelText: 'Email',
-                                prefixIcon: const Icon(Icons.email),
+                                labelStyle: TextStyle(color: hintColor),
+                                prefixIcon: Icon(Icons.email, color: hintColor),
                                 filled: true,
-                                fillColor: Colors.grey.shade100,
+                                fillColor: inputFillColor,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12.0),
                                   borderSide: BorderSide.none,
@@ -229,11 +256,13 @@ class _LoginPageState extends State<LoginPage>
                           ] else ...[
                             TextFormField(
                               controller: _userCodeController,
+                              style: TextStyle(color: textColor),
                               decoration: InputDecoration(
                                 labelText: 'User Code',
-                                prefixIcon: const Icon(Icons.badge),
+                                labelStyle: TextStyle(color: hintColor),
+                                prefixIcon: Icon(Icons.badge, color: hintColor),
                                 filled: true,
-                                fillColor: Colors.grey.shade100,
+                                fillColor: inputFillColor,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12.0),
                                   borderSide: BorderSide.none,
@@ -252,11 +281,13 @@ class _LoginPageState extends State<LoginPage>
                           ],
                           TextFormField(
                             controller: _passwordController,
+                            style: TextStyle(color: textColor),
                             decoration: InputDecoration(
                               labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock),
+                              labelStyle: TextStyle(color: hintColor),
+                              prefixIcon: Icon(Icons.lock, color: hintColor),
                               filled: true,
-                              fillColor: Colors.grey.shade100,
+                              fillColor: inputFillColor,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12.0),
                                 borderSide: BorderSide.none,
@@ -311,11 +342,16 @@ class _LoginPageState extends State<LoginPage>
                                   child: Container(
                                     height: 52,
                                     decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFF3A8DFF),
-                                          Color(0xFF1466FF),
-                                        ],
+                                      gradient: LinearGradient(
+                                        colors: isDark
+                                            ? [
+                                                const Color(0xFF00A884),
+                                                const Color(0xFF008F6F)
+                                              ] // WhatsApp Green for Dark
+                                            : [
+                                                const Color(0xFF3A8DFF),
+                                                const Color(0xFF1466FF)
+                                              ], // Blue for Light
                                       ),
                                       borderRadius: BorderRadius.circular(12),
                                       boxShadow: [
