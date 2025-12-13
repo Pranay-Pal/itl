@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/features/bookings/models/booking_model.dart';
+import 'package:itl/src/features/bookings/models/marketing_overview.dart';
 
 class MarketingService {
   final ApiService _apiService = ApiService();
@@ -103,6 +104,23 @@ class MarketingService {
     } else {
       throw Exception(
           'Failed to load letters: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  Future<MarketingOverview> getOverview({required String userCode}) async {
+    final uri = Uri.parse(
+        '${ApiService.baseUrl}/marketing-dashboard/$userCode/overview');
+
+    debugPrint('Fetching marketing overview: $uri');
+
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      return MarketingOverview.fromJson(json);
+    } else {
+      throw Exception(
+          'Failed to load overview: ${response.statusCode} ${response.body}');
     }
   }
 }

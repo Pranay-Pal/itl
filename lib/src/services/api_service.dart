@@ -16,7 +16,7 @@ class ApiService {
   String? _token;
   String? _userType;
   int? _userId;
-  String? _userCode; 
+  String? _userCode;
   String? _userName;
 
   // Public method to load persisted token/state; can be awaited at app startup

@@ -457,8 +457,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      const BookingDashboardScreen(userCode: 'MKT001'),
+                  builder: (context) => BookingDashboardScreen(
+                      userCode: _apiService.userCode ?? ''),
                 ),
               );
             },

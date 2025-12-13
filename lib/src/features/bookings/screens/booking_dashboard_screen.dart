@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import 'package:itl/src/features/bookings/models/booking_model.dart';
+import 'package:itl/src/features/bookings/models/marketing_overview.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/config/constants.dart';
+import 'package:itl/src/utils/currency_formatter.dart';
+
 import 'package:itl/src/shared/screens/pdf_viewer_screen.dart';
 
 class BookingDashboardScreen extends StatefulWidget {
@@ -29,6 +32,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
   bool _isLoading = false;
   List<BookingParent> _bookings = [];
   List<BookingParent> _letters = []; // For "By Letter" tab
+  MarketingOverview? _overview;
 
   // Pagination State
   int _currentPageBooking = 1;
@@ -89,6 +93,14 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
     } else {
       if (_isLoading) return;
       setState(() => _isLoading = true);
+      // Fetch overview only on initial load (or refresh)
+      try {
+        final overview =
+            await _marketingService.getOverview(userCode: widget.userCode);
+        if (mounted) setState(() => _overview = overview);
+      } catch (e) {
+        debugPrint('Error fetching overview: $e');
+      }
     }
 
     try {
@@ -210,6 +222,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
       ),
       body: Column(
         children: [
+          _buildOverviewCards(isDark),
           _buildFilterBar(isDark),
           Expanded(
             child: TabBarView(
@@ -553,7 +566,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color),
       ),
@@ -588,6 +601,124 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
         parent: parent,
         marketingService: _marketingService,
         userCode: widget.userCode,
+      ),
+    );
+  }
+
+  Widget _buildOverviewCards(bool isDark) {
+    if (_overview == null || _overview!.data == null) {
+      return const SizedBox.shrink();
+    }
+
+    final data = _overview!.data!;
+
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildCard(
+              isDark,
+              icon: Icons.calendar_today_outlined,
+              label: 'BOOKING VALUE',
+              value: CurrencyFormatter.formatIndianCurrency(
+                  data.totalBookingAmount ?? 0),
+              count: '${data.totalBookingAmount ?? 0} Total',
+              color: Colors.blue,
+              pillText: 'Total', // Use static text as per image
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildCard(
+              isDark,
+              icon: Icons.error_outline,
+              label: 'UNPAID INVOICES',
+              value: CurrencyFormatter.formatIndianCurrency(
+                  data.totalUnpaidInvoiceAmount ?? 0),
+              color: Colors.red,
+              pillText: 'Action Needed',
+              isActionNeeded: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard(
+    bool isDark, {
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    String? pillText,
+    String? count,
+    bool isActionNeeded = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: color, size: 28),
+              if (pillText != null)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isActionNeeded
+                        ? Colors.red.withValues(alpha: 0.1)
+                        : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    pillText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isActionNeeded ? Colors.red : Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: isDark
+                  ? Colors.white
+                  : const Color(0xFF1E293B), // Dark blue-grey
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -740,7 +871,7 @@ class _BookingDetailsDialogState extends State<_BookingDetailsDialog> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color),
       ),
