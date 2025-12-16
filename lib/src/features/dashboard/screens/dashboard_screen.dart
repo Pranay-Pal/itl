@@ -15,6 +15,8 @@ import 'package:itl/src/features/expenses/screens/expenses_screen.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/features/bookings/models/marketing_overview.dart';
 import 'package:itl/src/utils/currency_formatter.dart';
+import 'package:itl/src/features/invoices/screens/invoice_list_screen.dart';
+import 'package:file_picker/file_picker.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -228,6 +230,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 },
               ),
+            if (_isUser)
+              ListTile(
+                leading: const Icon(Icons.description_outlined),
+                title: const Text('Invoices'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const InvoiceListScreen(),
+                    ),
+                  );
+                },
+              ),
             const ListTile(
               leading: Icon(Icons.settings),
               title: Text('Settings'),
@@ -257,6 +272,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildQuickExpenseCard(),
+              const SizedBox(height: 20),
               const Text(
                 'Dashboard Overview',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -1090,6 +1107,209 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     : color), // Total card value is orange in image
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildQuickExpenseCard() {
+    return GestureDetector(
+      onTap: _showQuickExpenseDialog,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          // Gradient or solid color to make it stand out
+          gradient:
+              const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Expense',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    'Add a new expense instantly',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios,
+                color: Colors.white70, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showQuickExpenseDialog() {
+    final formKey = GlobalKey<FormState>();
+    final amountController = TextEditingController();
+    final descriptionController = TextEditingController();
+    String? selectedFilePath;
+    String? selectedFileName;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Quick Add Expense'),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Amount *',
+                      prefixText: '₹ ',
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) => v!.isEmpty ? 'Required' : null,
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(labelText: 'Description'),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // File Picker UI
+                  if (selectedFileName != null)
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.attach_file,
+                              size: 20, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              selectedFileName!,
+                              style: const TextStyle(fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () {
+                              setState(() {
+                                selectedFilePath = null;
+                                selectedFileName = null;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        FilePickerResult? result =
+                            await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+                        );
+
+                        if (result != null &&
+                            result.files.single.path != null) {
+                          setState(() {
+                            selectedFilePath = result.files.single.path!;
+                            selectedFileName = result.files.single.name;
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Attach Receipt (Optional)'),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+
+                  final amount = double.tryParse(amountController.text);
+                  if (amount == null) return;
+
+                  final userCode = _apiService.userCode;
+                  if (userCode == null) return;
+
+                  final desc = descriptionController.text;
+                  final file = selectedFilePath;
+
+                  Navigator.pop(ctx);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Adding expense...')),
+                  );
+
+                  try {
+                    await _marketingService.createExpense(
+                      userCode: userCode,
+                      amount: amount,
+                      description: desc,
+                      expenseDate: DateTime.now().toString().split(' ')[0],
+                      filePath: file,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Expense added successfully!')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed: $e')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

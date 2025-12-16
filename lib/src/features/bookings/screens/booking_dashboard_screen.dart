@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:itl/src/features/bookings/models/booking_model.dart';
-import 'package:itl/src/features/bookings/models/marketing_overview.dart';
+
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/config/constants.dart';
-import 'package:itl/src/utils/currency_formatter.dart';
 
 import 'package:itl/src/shared/screens/pdf_viewer_screen.dart';
 
@@ -30,9 +29,8 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
 
   // Pagination & Loading
   bool _isLoading = false;
-  List<BookingParent> _bookings = [];
-  List<BookingParent> _letters = []; // For "By Letter" tab
-  MarketingOverview? _overview;
+  List<BookingItemFlat> _bookings = [];
+  List<BookingGrouped> _letters = []; // For "By Letter" tab
 
   // Pagination State
   int _currentPageBooking = 1;
@@ -93,19 +91,11 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
     } else {
       if (_isLoading) return;
       setState(() => _isLoading = true);
-      // Fetch overview only on initial load (or refresh)
-      try {
-        final overview =
-            await _marketingService.getOverview(userCode: widget.userCode);
-        if (mounted) setState(() => _overview = overview);
-      } catch (e) {
-        debugPrint('Error fetching overview: $e');
-      }
     }
 
     try {
       if (_tabController.index == 0) {
-        // Tab 1: Show Booking
+        // Tab 1: Show Booking (Flat List)
         final pageToFetch = isLoadMore ? _currentPageBooking + 1 : 1;
         if (isLoadMore && pageToFetch > _lastPageBooking) return;
 
@@ -120,16 +110,16 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
         if (mounted) {
           setState(() {
             if (isLoadMore) {
-              _bookings.addAll(response.data);
+              _bookings.addAll(response.items);
             } else {
-              _bookings = response.data;
+              _bookings = response.items;
             }
             _currentPageBooking = response.currentPage;
             _lastPageBooking = response.lastPage;
           });
         }
       } else {
-        // Tab 2: Booking By Letter
+        // Tab 2: Booking By Letter (Grouped)
         final pageToFetch = isLoadMore ? _currentPageLetter + 1 : 1;
         if (isLoadMore && pageToFetch > _lastPageLetter) return;
 
@@ -144,9 +134,9 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
         if (mounted) {
           setState(() {
             if (isLoadMore) {
-              _letters.addAll(response.data);
+              _letters.addAll(response.bookings);
             } else {
-              _letters = response.data;
+              _letters = response.bookings;
             }
             _currentPageLetter = response.currentPage;
             _lastPageLetter = response.lastPage;
@@ -204,7 +194,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
           indicatorColor: Colors.white,
           tabs: const [
             Tab(text: 'Show Booking'),
-            Tab(text: 'Without Bill'),
+            Tab(text: 'By Letter'),
           ],
         ),
         actions: [
@@ -222,7 +212,6 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
       ),
       body: Column(
         children: [
-          _buildOverviewCards(isDark),
           _buildFilterBar(isDark),
           Expanded(
             child: TabBarView(
@@ -323,92 +312,206 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
   }
 
   Widget _buildBookingItemsList(bool isDark, ScrollController controller) {
-    // Flatten
-    List<Map<String, dynamic>> flatItems = [];
-    for (var parent in _bookings) {
-      for (var item in parent.items) {
-        flatItems.add({'parent': parent, 'item': item});
-      }
-    }
-
     return ListView.separated(
       controller: controller,
       padding: const EdgeInsets.all(12),
-      itemCount: flatItems.length + (_isLoadingMore ? 1 : 0),
+      itemCount: _bookings.length + (_isLoadingMore ? 1 : 0),
       separatorBuilder: (ctx, i) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        if (index == flatItems.length) {
+        if (index == _bookings.length) {
           return const Center(
               child: Padding(
             padding: EdgeInsets.all(8.0),
             child: CircularProgressIndicator(),
           ));
         }
-        final data = flatItems[index];
-        final BookingParent parent = data['parent'];
-        final BookingItem item = data['item'];
+        final item = _bookings[index];
 
-        return Container(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Color.fromRGBO(0, 0, 0, 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-            border: Border.all(
-              color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        parent.clientName ?? 'Unknown Client',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                    ),
-                    _buildStatusPill(item.status ?? 'Pending'),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildInfoRow(Icons.receipt, 'Ref:', parent.referenceNo),
-                const SizedBox(height: 8),
-                _buildInfoRow(Icons.work, 'Job:', item.jobOrderNo),
-                const SizedBox(height: 8),
-                _buildInfoRow(Icons.description, 'Sample:', item.particulars),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (parent.uploadLetterPath != null)
-                      TextButton.icon(
-                        icon: const Icon(Icons.picture_as_pdf, size: 18),
-                        label: const Text('View Letter'),
-                        style:
-                            TextButton.styleFrom(foregroundColor: Colors.red),
-                        onPressed: () => _viewLetter(parent.uploadLetterPath),
-                      ),
-                  ],
+        return GestureDetector(
+          onTap: () => _showBookingFullDetails(item),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Color.fromRGBO(0, 0, 0, 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
+              border: Border.all(
+                color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.clientName ?? 'Unknown Client',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      _buildStatusPill(
+                          item.status ?? 'Pending', item.statusClass),
+                    ],
+                  ),
+                  if (item.amount != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹ ${item.amount!.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.greenAccent : Colors.green[700],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+
+                  // Job Order Row with Date on right
+                  Row(
+                    children: [
+                      const Icon(Icons.work, size: 16, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      const Text('Job: ',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w500, color: Colors.grey)),
+                      Text(item.jobOrderNo ?? '-',
+                          style: const TextStyle(fontWeight: FontWeight.w500)),
+                      const Spacer(),
+                      const Icon(Icons.calendar_today,
+                          size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        item.jobOrderDate ?? item.receivedAt ?? '-',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  _buildInfoRow(Icons.receipt, 'Ref:', item.referenceNo),
+                  const SizedBox(height: 8),
+
+                  // Sample Row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.description, size: 16, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Text('Sample: ',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w500, color: Colors.grey)),
+                      Expanded(
+                          child: Text(item.particulars ?? '-',
+                              maxLines: 2, overflow: TextOverflow.ellipsis)),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Tap for details',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      if (item.letterUrl != null)
+                        TextButton.icon(
+                          icon: const Icon(Icons.picture_as_pdf, size: 18),
+                          label: const Text('View Letter'),
+                          style:
+                              TextButton.styleFrom(foregroundColor: Colors.red),
+                          onPressed: () => _viewLetter(item.letterUrl),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  void _showBookingFullDetails(BookingItemFlat item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Booking Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailItem('Client', item.clientName),
+              const Divider(),
+              _buildDetailItem('Job Order No', item.jobOrderNo),
+              _buildDetailItem(
+                  'Job Order Date', item.jobOrderDate ?? item.receivedAt),
+              _buildDetailItem('Reference No', item.referenceNo),
+              const Divider(),
+              _buildDetailItem('Sample Quality', item.sampleQuality),
+              _buildDetailItem('Particulars', item.particulars),
+              const Divider(),
+              _buildDetailItem(
+                  'Amount', item.amount != null ? '₹ ${item.amount}' : '-'),
+              _buildDetailItem('Lab Expected Date', item.labExpectedDate),
+              const Divider(),
+              _buildDetailItem('Status', item.status),
+              _buildDetailItem('Status Detail', item.statusDetail),
+            ],
+          ),
+        ),
+        actions: [
+          if (item.letterUrl != null)
+            TextButton.icon(
+              icon: const Icon(Icons.picture_as_pdf, size: 18),
+              label: const Text('View Letter'),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              onPressed: () => _viewLetter(item.letterUrl),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailItem(String label, String? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  fontSize: 12)),
+          const SizedBox(height: 2),
+          Text(value ?? '-', style: const TextStyle(fontSize: 14)),
+        ],
+      ),
     );
   }
 
@@ -497,47 +600,68 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
                   const SizedBox(height: 8),
                   _buildInfoRow(Icons.receipt_long, 'Ref:', parent.referenceNo),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 8.0, // Gap between adjacent chips
+                    runSpacing: 8.0, // Gap between lines
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      // Actions
-                      Row(
-                        children: [
-                          if (parent.uploadLetterPath != null)
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.picture_as_pdf,
-                                  size: 16, color: Colors.white),
-                              label: const Text('Letter'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.redAccent,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                              ),
-                              onPressed: () =>
-                                  _viewLetter(parent.uploadLetterPath),
-                            ),
-                          const SizedBox(width: 8),
-                          // Only show button if items exist, OR show 'No Items' text to be clear
-                          if (parent.items.isNotEmpty)
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.list, size: 16),
-                              label: Text('${parent.items.length} Items'),
-                              onPressed: () => _showLetterDetails(parent),
-                            )
-                          else
-                            const Padding(
-                              padding: EdgeInsets.only(left: 8.0),
-                              child: Text(
-                                'No Items',
-                                style: TextStyle(
-                                    color: Colors.grey,
-                                    fontStyle: FontStyle.italic,
-                                    fontSize: 12),
-                              ),
-                            ),
-                        ],
-                      )
+                      if (parent.uploadLetterUrl != null)
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.picture_as_pdf,
+                              size: 16, color: Colors.white),
+                          label: const Text('Letter'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                          ),
+                          onPressed: () => _viewLetter(parent.uploadLetterUrl),
+                        ),
+                      if (parent.reportFiles.isNotEmpty)
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.description,
+                              size: 16, color: Colors.white),
+                          label: Text('Reports (${parent.reportFiles.length})'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                          ),
+                          onPressed: () => _showReportsList(parent.reportFiles),
+                        ),
+                      if (parent.invoiceUrl != null)
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.receipt,
+                              size: 16, color: Colors.white),
+                          label: const Text('Invoice'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                          ),
+                          onPressed: () => _viewLetter(parent.invoiceUrl),
+                        ),
+                      // Only show button if items exist, OR show 'No Items' text to be clear
+                      if (parent.items.isNotEmpty)
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.list, size: 16),
+                          label: Text('${parent.items.length} Items'),
+                          onPressed: () => _showLetterDetails(parent),
+                        )
+                      else
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8.0),
+                          child: Text(
+                            'No Items',
+                            style: TextStyle(
+                                color: Colors.grey,
+                                fontStyle: FontStyle.italic,
+                                fontSize: 12),
+                          ),
+                        ),
                     ],
                   ),
                 ],
@@ -554,12 +678,22 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
     );
   }
 
-  Widget _buildStatusPill(String status) {
+  Widget _buildStatusPill(String status, [String? statusClass]) {
     Color color = Colors.orange;
-    if (status.toLowerCase().contains('issue')) {
-      color = const Color(0xFF007AFF); // Blue-ish for issue
+    String lowerStatus = status.toLowerCase();
+    String lowerClass = (statusClass ?? '').toLowerCase();
+
+    if (lowerClass == 'success' ||
+        lowerStatus.contains('receive') ||
+        lowerStatus.contains('issue')) {
+      color = Colors.green;
+    } else if (lowerClass == 'info') {
+      color = Colors.blue;
+    } else if (lowerClass == 'pending') {
+      color = Colors.orange;
     }
-    if (status.toLowerCase().contains('cancel')) {
+
+    if (lowerStatus.contains('cancel')) {
       color = Colors.red;
     }
 
@@ -593,7 +727,44 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
     );
   }
 
-  Future<void> _showLetterDetails(BookingParent parent) async {
+  void _showReportsList(List<ReportFile> files) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Booking Reports'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: files.length,
+            separatorBuilder: (ctx, i) => const Divider(),
+            itemBuilder: (context, index) {
+              final file = files[index];
+              return ListTile(
+                leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                title: Text(file.name ?? 'Unknown Report'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  // Keep dialog open or close? Usually close if navigating away,
+                  // but for PDF viewer push, keeping it open might be weird when coming back.
+                  // Let's keep it open so they can view multiple reports.
+                  _viewLetter(file.url);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showLetterDetails(BookingGrouped parent) async {
     // Show dialog with loading state initially
     showDialog(
       context: context,
@@ -604,128 +775,10 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
       ),
     );
   }
-
-  Widget _buildOverviewCards(bool isDark) {
-    if (_overview == null || _overview!.data == null) {
-      return const SizedBox.shrink();
-    }
-
-    final data = _overview!.data!;
-
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildCard(
-              isDark,
-              icon: Icons.calendar_today_outlined,
-              label: 'BOOKING VALUE',
-              value: CurrencyFormatter.formatIndianCurrency(
-                  data.totalBookingAmount ?? 0),
-              count: '${data.totalBookingAmount ?? 0} Total',
-              color: Colors.blue,
-              pillText: 'Total', // Use static text as per image
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildCard(
-              isDark,
-              icon: Icons.error_outline,
-              label: 'UNPAID INVOICES',
-              value: CurrencyFormatter.formatIndianCurrency(
-                  data.totalUnpaidInvoiceAmount ?? 0),
-              color: Colors.red,
-              pillText: 'Action Needed',
-              isActionNeeded: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCard(
-    bool isDark, {
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-    String? pillText,
-    String? count,
-    bool isActionNeeded = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: color, size: 28),
-              if (pillText != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isActionNeeded
-                        ? Colors.red.withValues(alpha: 0.1)
-                        : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    pillText,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isActionNeeded ? Colors.red : Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: isDark
-                  ? Colors.white
-                  : const Color(0xFF1E293B), // Dark blue-grey
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _BookingDetailsDialog extends StatefulWidget {
-  final BookingParent parent;
+  final BookingGrouped parent;
   final MarketingService marketingService;
   final String userCode;
 
@@ -740,142 +793,46 @@ class _BookingDetailsDialog extends StatefulWidget {
 }
 
 class _BookingDetailsDialogState extends State<_BookingDetailsDialog> {
-  bool _isLoading = true;
-  List<BookingItem> _items = [];
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchDetails();
-  }
-
-  Future<void> _fetchDetails() async {
-    try {
-      // Fetch bookings filtered by reference no and 'WITHOUT_BILL' (or 'BILL' if needed, but this is for filtered view)
-      // We use the general 'getBookings' which returns items, unlike the 'By Letter' endpoint.
-      // We search by Reference No to find the specific booking.
-      final response = await widget.marketingService.getBookings(
-        userCode: widget.userCode,
-        search: widget.parent.referenceNo,
-        paymentOption: widget.parent.paymentOption, // e.g. 'WITHOUT_BILL'
-      );
-
-      // Find the matching booking in the results
-      // Safety check: specific ID matching if possible, otherwise first result
-      final match = response.data.firstWhere(
-        (b) => b.id == widget.parent.id,
-        orElse: () =>
-            response.data.isNotEmpty ? response.data.first : widget.parent,
-      );
-
-      if (mounted) {
-        setState(() {
-          _items = match.items;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
-      }
-    }
-  }
+  // Since we already have items in BookingGrouped, we might not need to fetch again
+  // But if the list is truncated or we want fresh details, we can keep the logic.
+  // Docs say /bookings/showbooking returns full items list structure.
+  // I'll display what we have in parent.items directly.
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text('Booking Items for ${widget.parent.clientName}'),
       content: SizedBox(
-        width: double.maxFinite, // Ensure dialog takes available width
-        child: _buildContent(),
+        width: double.maxFinite,
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: widget.parent.items.length,
+          separatorBuilder: (ctx, i) => Divider(),
+          itemBuilder: (context, index) {
+            final item = widget.parent.items[index];
+            return ListTile(
+              title:
+                  Text(item.sampleDescription ?? item.particulars ?? 'Sample'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Job: ${item.jobOrderNo ?? '-'}'),
+                  Text('Quality: ${item.sampleQuality ?? '-'}'),
+                  Text('Status: ${item.status ?? '-'}'),
+                  if (item.labExpectedDate != null)
+                    Text('Exp: ${item.labExpectedDate}'),
+                ],
+              ),
+              trailing: item.amount != null ? Text(item.amount!) : null,
+            );
+          },
+        ),
       ),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Close')),
       ],
-    );
-  }
-
-  Widget _buildContent() {
-    if (_isLoading) {
-      return const SizedBox(
-        height: 100,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_error != null) {
-      return SizedBox(
-        height: 100,
-        child: Center(
-            child: Text('Error: $_error',
-                style: const TextStyle(color: Colors.red))),
-      );
-    }
-
-    if (_items.isEmpty) {
-      return const SizedBox(
-        height: 100,
-        child: Center(child: Text('No items found for this specific booking.')),
-      );
-    }
-
-    // Determine if we should use horizontal scrolling
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SingleChildScrollView(
-        // Add vertical scroll for long lists
-        child: DataTable(
-          columns: const [
-            DataColumn(label: Text('Job Order No')),
-            DataColumn(label: Text('Particulars')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Amount')),
-          ],
-          rows: _items.map((item) {
-            return DataRow(cells: [
-              DataCell(Text(item.jobOrderNo ?? '-')),
-              DataCell(
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 200),
-                  child: Text(
-                    item.particulars ?? '-',
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
-                  ),
-                ),
-              ),
-              DataCell(_buildStatusPill(item.status ?? '-')),
-              DataCell(Text(item.amount ?? '-')),
-            ]);
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusPill(String status) {
-    Color color = Colors.orange;
-    if (status.toLowerCase().contains('issue')) {
-      color = const Color(0xFF007AFF);
-    }
-    if (status.toLowerCase().contains('cancel')) {
-      color = Colors.red;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Text(status, style: TextStyle(color: color, fontSize: 12)),
     );
   }
 }

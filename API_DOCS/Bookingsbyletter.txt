@@ -1,0 +1,22 @@
+Booking List (Booking By Letter view)
+
+Method: GET
+Path: /api/marketing-person/{user_code}/bookings/showbooking
+Route name: api.marketing.booking.showbooking
+Auth: Bearer token — header Authorization: Bearer <JWT> (middleware multi_jwt:api)
+Query params:
+department (int) — optional
+marketing (string) — optional override
+search (string) — booking.reference_no, booking.client_name, or booking.items job_order_no/sample_quality/particulars
+month (int)
+year (int)
+perPage (int, default 25)
+page (int)
+Success response (200):
+JSON { status:true, message, data: { bookings: [ { id, client_name, reference_no, items_count, items: [ { id, job_order_no, sample_description, sample_quality, status, particulars, lab_expected_date, amount } ], report_files: [ { name, url } ], upload_letter_url, invoice_url } ], meta: { total, per_page, current_page, last_page } } }
+ 
+Errors
+
+401 Unauthorized — missing/invalid token
+404 Not Found — invalid user_code
+422 Validation — invalid params

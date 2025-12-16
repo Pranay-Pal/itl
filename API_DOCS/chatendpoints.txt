@@ -1,0 +1,86 @@
+Base URL: http://127.0.0.1:8000/api
+Prefixes: User endpoints use /chat (e.g., /api/chat/...). Admin endpoints use /admin/chat (e.g., /api/admin/chat/...).
+Authentication
+
+User Login: POST /api/user/login
+Body (JSON): user_code, password
+Success: HTTP 200 with token in either access_token or data.access_token. Example success fragment:
+{"access_token":"<JWT>","token_type":"bearer","expires_in":2592000}
+Admin Login: POST /api/admin/login
+Body (JSON): email, password
+Success: same token shape as user.
+Auth Header: Send Authorization: Bearer <token> on all protected requests.
+Common Response Codes
+
+200 — OK
+201 — Created (resource created, e.g., group or message)
+422 — Validation error (e.g., invalid credentials)
+Other 4xx/5xx per standard API behavior
+Endpoints (summary with examples)
+
+Get groups
+
+Method: GET
+Path: /api/chat/groups or /api/admin/chat/groups
+Query: pagination optional
+Response: list of chat groups (IDs, names, last_message, etc.)
+Create group
+
+Method: POST
+Path: /api/chat/groups
+Body (JSON): {"name":"Group Name"}
+Success: 201 with created group data
+Unread counts
+
+Method: GET
+Path: /api/chat/unread-counts
+Response: unread counts per group/user
+Search users
+
+Method: GET
+Path: /api/chat/users/search?q=<term>
+Get messages for a group
+
+Method: GET
+Path: /api/chat/messages?group_id=<groupId>
+Response: paginated messages for the group
+Send message (text or file)
+
+Method: POST
+Path: /api/chat/messages
+For text (JSON):
+Headers: Content-Type: application/json, Authorization: Bearer <token>
+Body: {"group_id":1,"type":"text","content":"Hello"}
+For file (multipart/form-data) — tested and working:
+Headers: Authorization: Bearer <token>
+Fields: group_id, type (e.g., file), content (optional)
+File field names accepted: file or attachments[]
+
+Method: GET
+Path: /api/chat/messages/{messageId}
+Response: message object (may contain attachment metadata)
+React to message
+
+Method: POST
+Path: /api/chat/messages/{messageId}/reactions
+Body: e.g., {"type":"like"}
+Reply to message
+
+Method: POST
+Path: /api/chat/messages/{messageId}/reply
+Body: {"type":"text","content":"Reply text"}
+Forward message
+
+Method: POST
+Path: /api/chat/messages/{messageId}/forward
+Body: {"target_group_ids":[<groupId2>]}
+Share message
+
+Method: POST
+Path: /api/chat/messages/{messageId}/share
+Body: {"target_group_id":<groupId2>}
+Set message status
+
+Method: POST
+Path: /api/chat/messages/{messageId}/status
+Body: {"status":"hold"} (other values tested: booked, cancel)

@@ -456,17 +456,20 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>?> uploadFile(int groupId, String filePath,
-      {String type = 'image', int? replyToMessageId}) async {
+      {String type = 'file', int? replyToMessageId, String? content}) async {
     await _loadToken();
     final url = _userType == 'admin'
-        ? '$_baseUrl/admin/chat/messages/upload'
-        : '$_baseUrl/chat/messages/upload';
+        ? '$_baseUrl/admin/chat/messages'
+        : '$_baseUrl/chat/messages';
 
     Future<http.StreamedResponse> makeRequest() async {
       final request = http.MultipartRequest('POST', Uri.parse(url));
       request.headers['Authorization'] = 'Bearer $_token';
       request.fields['group_id'] = groupId.toString();
       request.fields['type'] = type;
+      if (content != null) {
+        request.fields['content'] = content;
+      }
 
       if (kDebugMode) {
         debugPrint('--- API UPLOAD REQUEST ---');
@@ -587,10 +590,12 @@ class ApiService {
 
   Future<Map<String, dynamic>?> createDirectMessage(int userId) async {
     final url = _userType == 'admin'
-        ? '$_baseUrl/admin/chat/direct-with/$userId'
-        : '$_baseUrl/chat/direct-with/$userId';
+        ? '$_baseUrl/admin/chat/direct'
+        : '$_baseUrl/chat/direct';
 
-    final response = await _sendHttpWithAuthAndRetry('GET', url);
+    final body = {'user_id': userId};
+
+    final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
