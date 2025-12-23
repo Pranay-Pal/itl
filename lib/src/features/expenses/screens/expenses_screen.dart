@@ -297,7 +297,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 amount: amount,
                 section: sectionController.text.isNotEmpty
                     ? sectionController.text
-                    : 'General',
+                    : 'personal',
                 fromDate: DateFormat('yyyy-MM-dd').format(selectedDate!),
                 description: descriptionController.text,
                 filePath: filePath,

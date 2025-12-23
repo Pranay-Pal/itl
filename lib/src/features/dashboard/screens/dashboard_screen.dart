@@ -1374,7 +1374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     await _marketingService.createExpense(
                       userCode: userCode,
                       amount: amount,
-                      section: 'General',
+                      section: 'personal',
                       description: desc,
                       fromDate: DateTime.now().toString().split(' ')[0],
                       filePath: file,
