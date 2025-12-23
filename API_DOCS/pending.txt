@@ -1,0 +1,1011 @@
+Pendings API (Mobile)
+
+Base URL: /api/marketing-person/{user_code}
+Auth: Authorization: Bearer <JWT> (middleware multi_jwt:api)
+GET /reports/pendings
+
+Path: /api/marketing-person/{user_code}/reports/pendings
+Purpose: Return pending reports (either booking-level "reference" grouping or per-item "job" list) with pagination and filters.
+Query params:
+mode: job or reference (default job)
+perPage: integer (default 25)
+page: integer
+search: string — searches job_order_no, reference_no, client_name, sample_description, sample_quality, particulars
+department: integer (department id)
+marketing: string (marketing person user_code)
+month: 1–12 (filters created_at or booking date depending on mode)
+year: YYYY
+overdue: boolean (if present / 1 → only items with null issue_date and lab_expected_date < now)
+Responses (success 200)
+
+Common pagination meta in data.meta: { total, per_page, current_page, last_page }.
+
+If mode=job (default) — returns data.items[] (each item):
+
+id, job_order_no, client_name, sample_description, sample_quality, particulars, status (Pending/Received), receiver (name|null), upload_letter_url
+Example (trimmed):
+{
+"status": true,
+"message": "Pending items fetched",
+"data": {
+"items": [{ "id": 123, "job_order_no":"ITL...", "client_name":"ABC", "sample_description":"...", "status":"Pending", "receiver":null, "upload_letter_url":"https://..." }],
+"meta": {...}
+}
+}
+If mode=reference — returns data.bookings[] (each booking):
+
+id, client_name, reference_no, pending_items_count, upload_letter_url, pending_items (array of { job_order_no, sample_description, sample_quality, particulars, receiver })
+Example (trimmed):
+{
+"status": true,
+"message": "Pending bookings fetched",
+"data": {
+"bookings": [{ "id": 10, "client_name":"ABC", "reference_no":"REF001", "pending_items_count":3, "upload_letter_url":"https://...", "pending_items":[...] }],
+"meta": {...}
+}
+}
+
+Sample response:
+{
+    "status": true,
+    "message": "Pending items fetched",
+    "data": {
+        "items": {
+            "current_page": 1,
+            "data": [
+                {
+                    "id": 131491,
+                    "job_order_no": "fdf",
+                    "client_name": "Amit Singh",
+                    "sample_description": "fef",
+                    "sample_quality": "fdf",
+                    "particulars": "fdf",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251216_201536_J6jnShyBymcPfYRSp774.pdf"
+                },
+                {
+                    "id": 131489,
+                    "job_order_no": "rdescxz",
+                    "client_name": "DEMO",
+                    "sample_description": "Cement, OPC-43, Make- Ultratech",
+                    "sample_quality": "1 BAG",
+                    "particulars": "AS PER IS",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251214_211910_u4j9rrHkxaKSHXSzyZa6.pdf"
+                },
+                {
+                    "id": 131487,
+                    "job_order_no": "NFHG",
+                    "client_name": "UPPCL",
+                    "sample_description": "HGN",
+                    "sample_quality": "HBVJN",
+                    "particulars": "HGNB",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251213_091841_C9hHShaBqWuEYyuN1158.pdf"
+                },
+                {
+                    "id": 131486,
+                    "job_order_no": "hgjkl;452",
+                    "client_name": "UTTARAKHAND JAL SANSTHAN, HARIDWAR(lADPUR)",
+                    "sample_description": "Cement, OPC-43, Make- Ultratech",
+                    "sample_quality": "1 BAG",
+                    "particulars": "AS PER IS",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193820_ubqACE9GV2q946N0EI26.pdf"
+                },
+                {
+                    "id": 131485,
+                    "job_order_no": "54654",
+                    "client_name": "Avinash Kumar Jha",
+                    "sample_description": "Hii",
+                    "sample_quality": "101",
+                    "particulars": "hiih",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193419_jUb1eoYbx2d8MzdMB5EZ.jpeg"
+                },
+                {
+                    "id": 131484,
+                    "job_order_no": "54654",
+                    "client_name": "Avinash Kumar Jha",
+                    "sample_description": "Hii",
+                    "sample_quality": "101",
+                    "particulars": "hiih",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193351_MrzOXFV7Hw5YlzwMddiW.jpeg"
+                },
+                {
+                    "id": 131483,
+                    "job_order_no": "hgjkl;452",
+                    "client_name": "UTTARAKHAND JAL SANSTHAN, HARIDWAR(lADPUR)",
+                    "sample_description": "Cement, OPC-43, Make- Ultratech",
+                    "sample_quality": "1 BAG",
+                    "particulars": "AS PER IS",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193338_rL2WPc4xHuVEzksjtCLb.pdf"
+                },
+                {
+                    "id": 131482,
+                    "job_order_no": "hgjkl;45",
+                    "client_name": "UTTARAKHAND JAL SANSTHAN, HARIDWAR(lADPUR)",
+                    "sample_description": "Cement, OPC-43, Make- Ultratech",
+                    "sample_quality": "1 BAG",
+                    "particulars": "AS PER IS",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193234_AeIlV7Ya4OSTlMYY1vbG.pdf"
+                },
+                {
+                    "id": 131473,
+                    "job_order_no": "ITLNBC.M20250317002",
+                    "client_name": "DEMO",
+                    "sample_description": "Cement, OPC-43, Make- Ultratech",
+                    "sample_quality": "2 LTR",
+                    "particulars": "AS PER IS",
+                    "status": "Pending",
+                    "receiver": null,
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_105344_hyLLNkqb7Xoy7MhqS9AM.pdf"
+                },
+                {
+                    "id": 131472,
+                    "job_order_no": "yjhngb 5",
+                    "client_name": "UTTARAKHAND JAL SANSTHAN, HARIDWAR(lADPUR)",
+                    "sample_description": "Cement, OPC-43, Make- Ultratech",
+                    "sample_quality": "1 BAG",
+                    "particulars": "AS PER IS",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_085957_U1hWEfPF0EFoVOxE8Zte.pdf"
+                },
+                {
+                    "id": 131471,
+                    "job_order_no": "452451",
+                    "client_name": "Avinash Kumar Jha",
+                    "sample_description": "Hii, How are you",
+                    "sample_quality": "10101",
+                    "particulars": "Hii,",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251208_071554_GSxbvZaNJkO2vwcsekA3.pdf"
+                },
+                {
+                    "id": 131411,
+                    "job_order_no": "ITLNBC.M20250317002",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Reinforcement Steel, Dia-08mm, Make-ESL, Grade-Fe 550D, Invoice No-MRL/D/2425/759",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131412,
+                    "job_order_no": "ITLNBC.M20250317003",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Reinforcement Steel, Dia-08mm, Make-Sail, Grade-Fe 550D, Invoice No-SIP 2425/HR/1038",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131413,
+                    "job_order_no": "ITLNBC.M20250317004",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Reinforcement Steel, Dia-12mm, Make-JSPL, Grade-Fe 550D, Invoice No-SIP 2425/HR/1101",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131414,
+                    "job_order_no": "ITLNBC.M20250317005",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Ultratech, Grade-43, Week No-09, Invoice No-8948576671",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131415,
+                    "job_order_no": "ITLNBC.M20250317006",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Ultratech, Grade-43, Week No-09, Invoice No-8948576577",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131416,
+                    "job_order_no": "ITLNBC.M20250317007",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Ultratech, Grade-43, Week No-10, Invoice No-8536452975",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131417,
+                    "job_order_no": "ITLNBC.M20250317008",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Ultratech, Grade-43, Week No-10, Invoice No-8536453371",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131418,
+                    "job_order_no": "ITLNBC.M20250317009",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Ultratech, Grade-43, Week No-11, Invoice No-8948582774",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131419,
+                    "job_order_no": "ITLNBC.M20250317010",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Ultratech, Grade-43, Week No-11, Invoice No-8536453455",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131420,
+                    "job_order_no": "ITLNBC.M20250317011",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Ultratech, Grade-43, Week No-11, Invoice No-8948582731",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131421,
+                    "job_order_no": "ITLNBC.M20250317012",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Ultratech, Grade-43, Week No-11, Invoice No-8536453410",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131422,
+                    "job_order_no": "ITLNBC.M20250317013",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Shree, Grade-43, Week No-09, Invoice No-UP2401142811",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131423,
+                    "job_order_no": "ITLNBC.M20250317014",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Shree, Grade-43, Week No-09, Invoice No-UP2401142815",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                },
+                {
+                    "id": 131424,
+                    "job_order_no": "ITLNBC.M20250317015",
+                    "client_name": "NBCC ( INDIA) LIMITED, DREAM VALLEY PHASE-2  PLOT NO .GH-09 ZONE-IV",
+                    "sample_description": "Cement, OPC, Make-Shree, Grade-43, Week No-09, Invoice No-UP2401142793",
+                    "sample_quality": "Standard",
+                    "particulars": "Physical &amp; Chemical Test As Per Relevant IS Code",
+                    "status": "Received",
+                    "receiver": "Super Admin 1",
+                    "upload_letter_url": "https://itlcloud.in/uploads/bookings/20251201_094825_ibg7szFh7wGIgt9rxlyY.pdf"
+                }
+            ],
+            "first_page_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=1",
+            "from": 1,
+            "last_page": 162,
+            "last_page_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=162",
+            "links": [
+                {
+                    "url": null,
+                    "label": "&laquo; Previous",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=1",
+                    "label": "1",
+                    "active": true
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=2",
+                    "label": "2",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=3",
+                    "label": "3",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=4",
+                    "label": "4",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=5",
+                    "label": "5",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=6",
+                    "label": "6",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=7",
+                    "label": "7",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=8",
+                    "label": "8",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=9",
+                    "label": "9",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=10",
+                    "label": "10",
+                    "active": false
+                },
+                {
+                    "url": null,
+                    "label": "...",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=161",
+                    "label": "161",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=162",
+                    "label": "162",
+                    "active": false
+                },
+                {
+                    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=2",
+                    "label": "Next &raquo;",
+                    "active": false
+                }
+            ],
+            "next_page_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings?page=2",
+            "path": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/pendings",
+            "per_page": 25,
+            "prev_page_url": null,
+            "to": 25,
+            "total": 4032
+        },
+        "meta": {
+            "total": 4032,
+            "per_page": 25,
+            "current_page": 1,
+            "last_page": 162
+        }
+    }
+}
+
+at?mode=reference
+{
+    "status": true,
+    "message": "Pending bookings fetched",
+    "data": {
+        "bookings": [
+            {
+                "id": 21154,
+                "client_name": "Amit Singh",
+                "reference_no": "hgfhg",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251216_201536_J6jnShyBymcPfYRSp774.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "fdf",
+                        "sample_description": "fef",
+                        "sample_quality": "fdf",
+                        "particulars": "fdf",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21152,
+                "client_name": "DEMO",
+                "reference_no": "fvdscx",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251214_211910_u4j9rrHkxaKSHXSzyZa6.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "rdescxz",
+                        "sample_description": "Cement, OPC-43, Make- Ultratech",
+                        "sample_quality": "1 BAG",
+                        "particulars": "AS PER IS",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21150,
+                "client_name": "UPPCL",
+                "reference_no": "GFHBFG856",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251213_091841_C9hHShaBqWuEYyuN1158.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "NFHG",
+                        "sample_description": "HGN",
+                        "sample_quality": "HBVJN",
+                        "particulars": "HGNB",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21149,
+                "client_name": "UTTARAKHAND JAL SANSTHAN, HARIDWAR(lADPUR)",
+                "reference_no": "ghjk45255nkj",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193820_ubqACE9GV2q946N0EI26.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "hgjkl;452",
+                        "sample_description": "Cement, OPC-43, Make- Ultratech",
+                        "sample_quality": "1 BAG",
+                        "particulars": "AS PER IS",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21148,
+                "client_name": "Avinash Kumar Jha",
+                "reference_no": "465465787",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193419_jUb1eoYbx2d8MzdMB5EZ.jpeg",
+                "pending_items": [
+                    {
+                        "job_order_no": "54654",
+                        "sample_description": "Hii",
+                        "sample_quality": "101",
+                        "particulars": "hiih",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21147,
+                "client_name": "Avinash Kumar Jha",
+                "reference_no": "465465",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193351_MrzOXFV7Hw5YlzwMddiW.jpeg",
+                "pending_items": [
+                    {
+                        "job_order_no": "54654",
+                        "sample_description": "Hii",
+                        "sample_quality": "101",
+                        "particulars": "hiih",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21146,
+                "client_name": "UTTARAKHAND JAL SANSTHAN, HARIDWAR(lADPUR)",
+                "reference_no": "ghjk45255",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193338_rL2WPc4xHuVEzksjtCLb.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "hgjkl;452",
+                        "sample_description": "Cement, OPC-43, Make- Ultratech",
+                        "sample_quality": "1 BAG",
+                        "particulars": "AS PER IS",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21145,
+                "client_name": "UTTARAKHAND JAL SANSTHAN, HARIDWAR(lADPUR)",
+                "reference_no": "ghjk45",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_193234_AeIlV7Ya4OSTlMYY1vbG.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "hgjkl;45",
+                        "sample_description": "Cement, OPC-43, Make- Ultratech",
+                        "sample_quality": "1 BAG",
+                        "particulars": "AS PER IS",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21137,
+                "client_name": "DEMO",
+                "reference_no": "128062_NBCC/GM/DV-II/TEST/2025/511",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_105344_hyLLNkqb7Xoy7MhqS9AM.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLNBC.M20250317002",
+                        "sample_description": "Cement, OPC-43, Make- Ultratech",
+                        "sample_quality": "2 LTR",
+                        "particulars": "AS PER IS",
+                        "receiver": null
+                    }
+                ]
+            },
+            {
+                "id": 21136,
+                "client_name": "UTTARAKHAND JAL SANSTHAN, HARIDWAR(lADPUR)",
+                "reference_no": "dscx54",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251212_085957_U1hWEfPF0EFoVOxE8Zte.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "yjhngb 5",
+                        "sample_description": "Cement, OPC-43, Make- Ultratech",
+                        "sample_quality": "1 BAG",
+                        "particulars": "AS PER IS",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 21135,
+                "client_name": "Avinash Kumar Jha",
+                "reference_no": "4541454",
+                "pending_items_count": 1,
+                "upload_letter_url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/20251208_071554_GSxbvZaNJkO2vwcsekA3.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "452451",
+                        "sample_description": "Hii, How are you",
+                        "sample_quality": "10101",
+                        "particulars": "Hii,",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 9472,
+                "client_name": "AIRPORTS AUTHORTY OF INDIA, LEH ( J AND K)(MS MOHD. SULTAN AND BROS)",
+                "reference_no": "100761_AAI/LEH/NTB/B/WALL/TESTS/894 23/08/2024",
+                "pending_items_count": 1,
+                "upload_letter_url": "/09  -DEC24  LTRNO 894 23082024 AIRPORTS AUTHORTY OF INDIA, LEH( J AND K)(MS MOHD. SULTAN AND BROS).pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLC20240827002",
+                        "sample_description": "WATER FOR CONSTRUCTION PURPOSE, ",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER RELEVANT IS CODE",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 12288,
+                "client_name": "DMRC (DELHI METRO RAIL CORPORATION LIMITED) (MAJLIS PARK -M/S AFCONS)",
+                "reference_no": "14487_DMRC/CPM-3/TESTING OF MATERIAL/PH-IV/677/VOL",
+                "pending_items_count": 6,
+                "upload_letter_url": "/321 -MAR23 DMRC (DELHI METRO CORPORATION LTD) (MAJLIS PARK -AFCONS) LTRNO 2384A 17032023.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM.20230318003",
+                        "sample_description": "CORE CUTTING  M-30 07days Doc-11/03/2023",
+                        "sample_quality": "Standard",
+                        "particulars": "COMPRESSIVE STRENGTH",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20230318006",
+                        "sample_description": "CORE CUTTING  M-30 07days Doc-11/03/2023",
+                        "sample_quality": "Standard",
+                        "particulars": "COMPRESSIVE STRENGTH",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20230318007",
+                        "sample_description": "CORE CUTTING  M-30 07days Doc-11/03/2023",
+                        "sample_quality": "Standard",
+                        "particulars": "COMPRESSIVE STRENGTH",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20230318009",
+                        "sample_description": "CORE CUTTING  M-07 07days Doc-11/03/2023",
+                        "sample_quality": "Standard",
+                        "particulars": "COMPRESSIVE STRENGTH",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20230318011",
+                        "sample_description": "CORE CUTTING  M-30 07days Doc-11/03/2023",
+                        "sample_quality": "Standard",
+                        "particulars": "COMPRESSIVE STRENGTH",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20230318013",
+                        "sample_description": "CORE CUTTING  M-30 07days Doc-11/03/2023",
+                        "sample_quality": "Standard",
+                        "particulars": "COMPRESSIVE STRENGTH",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 12289,
+                "client_name": "DMRC (DELHI METRO RAIL CORPORATION LIMITED) (MAJLIS PARK -M/S AFCONS)",
+                "reference_no": "60033_DMRC/CPM-3/TESTING OF MATERIAL/PH-IV/677/VOL",
+                "pending_items_count": 9,
+                "upload_letter_url": "/360 -MAR23 ULR DMRC (DELHI METRO CORPORATION LTD) (MAJLIS PARK -AFCONS) LTRNO 2414A 21032023.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM20230321009",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 08 mm (Invoice No. 8122200973 heat no. 16352)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM20230321010",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 08 mm (Invoice No. 8122200973 heat no. 213123)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM20230321011",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 08 mm (Invoice No. 8122200973 heat no. 21309)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM20230321012",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 10mm (Invoice No. 8122200973 heat no. 213674)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM20230321013",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 10mm (Invoice No. 8122200973 heat no. 213681)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM20230321014",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 10mm (Invoice No. 8122200973 heat no. 213683)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM20230321015",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 12mm (Invoice No. 8122200973 heat no. 163552)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM20230321016",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 12mm (Invoice No. 8122200973 heat no. 213123)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM20230321017",
+                        "sample_description": "STEEL MAKE-RINL  GRADE-FE 500D dia 12mm (Invoice No. 8122200973 heat no. 13095)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 1786 PHYSICAL &amp; CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 6146,
+                "client_name": " MS GAURSONS PROMOTERS PVT.LTD. GR. NOIDA",
+                "reference_no": "113321_29/04/2025(MS GAURSON PROMOTERS PVT.LTD.)",
+                "pending_items_count": 12,
+                "upload_letter_url": "/24  -MAY25 290422025 MS GAURSONS PROMOTERS PVT.LTD. GR. NOIDA.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM.20250501005",
+                        "sample_description": "DESIGN MIX, GRADE-M25, ",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501006",
+                        "sample_description": "DESIGN MIX, GRADE-M30",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501007",
+                        "sample_description": "DESIGN MIX, GRADE-M35",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501008",
+                        "sample_description": "DESIGN MIX, GRADE-M35(SCC)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501009",
+                        "sample_description": "DESIGN MIX, GRADE-M40",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501010",
+                        "sample_description": "DESIGN MIX, GRADE-M40(SCC)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501011",
+                        "sample_description": "DESIGN MIX, GRADE-M45",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501012",
+                        "sample_description": "DESIGN MIX, GRADE-M45(SCC)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501013",
+                        "sample_description": "DESIGN MIX, GRADE-M50",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501014",
+                        "sample_description": "DESIGN MIX, GRADE-M50(SCC)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501015",
+                        "sample_description": "DESIGN MIX, GRADE-M60",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    },
+                    {
+                        "job_order_no": "ITLM.20250501016",
+                        "sample_description": "DESIGN MIX, GRADE-M60(SCC)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS CODE",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 12292,
+                "client_name": "DMRC (DELHI METRO RAIL CORPORATION LIMITED) (MAJLIS PARK -M/S AFCONS)",
+                "reference_no": "60479_DMRC/CPM-3/TESTING OF MATERIAL/PH-IV/677/VOL",
+                "pending_items_count": 1,
+                "upload_letter_url": "/17  -APR23 DMRC (DELHI METRO CORPORATION LTD) (MAJLIS PARK -MS AFCONS) LTRNO 2513A 18042023.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM20230419022",
+                        "sample_description": "CEMENT OPC GRADE -53  MAKE -ULTRATECH (WEEK NO 15) AFC/DC-05/CEMENT/SAMPLE/812",
+                        "sample_quality": "Standard",
+                        "particulars": "BLAINE&#039;S AIR , PERMEABILITY &amp; DENSITY TEST",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 16388,
+                "client_name": " DEDICATED FREIGHT CORRIDOR CORPORATION OF INDIA LIMITED",
+                "reference_no": "129642_IMD/KRJN/JBCC/TP-TEST/MATEIAL/ITLPL/CRR  11",
+                "pending_items_count": 1,
+                "upload_letter_url": "/81   -NOV25 11112025 DEDICATED FREIGHT CORRIDOR CORPORATION OF INDIA LIMITED.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM.20251111007",
+                        "sample_description": "BURNT CLAY BRICKS, Manufacture-MS Satyapal Ent Udhyog",
+                        "sample_quality": "Standard",
+                        "particulars": "Efflorescence Test, Compressive Strength Test &amp; Water Absorption Test, AAs Per IS:3495(I To IV) ",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 12293,
+                "client_name": "DMRC (DELHI METRO RAIL CORPORATION LIMITED) (MAJLIS PARK -M/S AFCONS)",
+                "reference_no": "19635_DMRC/CPM-3/TESTING OF MATERIAL/PH-IV/677/VOL",
+                "pending_items_count": 1,
+                "upload_letter_url": "/386 -MAY23 DMRC (DELHI METRO CORPORATION LTD) (MAJLIS PARK) (MS AFCONS) LTRNO 2665A 18052023.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM.20230519026",
+                        "sample_description": "CEMENT OPC GRADE -53  MAKE -WONDER (WEEK-19)",
+                        "sample_quality": "Standard",
+                        "particulars": "BLAINE and #039;S AIR , PERMEABILITY  and  DENSITY TEST",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 11526,
+                "client_name": "DELHI JAL BOARD GOVT OF NCT OF DELHI OVER HEAD TANK,  ASHOK VIHAR, DELHI (MS-SONI TUBEWELL WORKS)",
+                "reference_no": "118376_DJB/EE M-14/2023-24/01/SITE  28/04/2025 (SO",
+                "pending_items_count": 1,
+                "upload_letter_url": "/97  -JULY25 28042025 DELHI JAL BOARD GOVT OF NCT OF DELHI OVER HEAD TANK,  ASHOK VIHAR, DELHI (MS-SONI TUBEWELL WORKS).pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM.20250429031",
+                        "sample_description": "WATER( FOR DRINKING & CONSTRUCTION PURPOSE)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS 10500",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 19462,
+                "client_name": "Inder Kumar Contractor",
+                "reference_no": "21196_Nil  and  Dated : 12/06/2023",
+                "pending_items_count": 1,
+                "upload_letter_url": "/195 -JUN23 MS INDERKUMAR CONTRACTOR ,PATIALA (PUNJAB) 12062023.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM.20230614001",
+                        "sample_description": "Paver Block Grade  M35, I-Shape",
+                        "sample_quality": "Standard",
+                        "particulars": "Tensile Splitting Strength Test And Flexural Strength Test",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 11528,
+                "client_name": "DELHI JAL BOARD, GOVT OF NCT OF DELHI OVER HEAD TANK,  ASHOK VIHAR, DELHI (MS-YADAV CONSTRUCTION COMPANY)",
+                "reference_no": "121390_DJB/EE M-14/2023-24/01/SITE (04/06/2025)",
+                "pending_items_count": 1,
+                "upload_letter_url": "/DJB_001.jpg",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM.20250604053.",
+                        "sample_description": "DWC PIPE, 300MM, SN-8",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS:16098-2013M P-2(AMENDED UPTO DATE).",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 17928,
+                "client_name": "NBCC (INDIA) LIMITED ,AMARPALI (KINGSWOOD)",
+                "reference_no": "22205_NBCC/AMRAPALI/KINGSWOOD/SITE/2023/819 15/06/",
+                "pending_items_count": 1,
+                "upload_letter_url": "/17  -JUN23 NBCC (INDIA) LIMITED AMRAPALI (KINGSWOOD) LTRNO 819 15062023.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLNBC.E20230620025",
+                        "sample_description": "2.5 SQMM CU PVC INDUSTRIAL FRLS WIRE -BLUE (MAKE-BONTON)",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER CPWD SPECIFICATION  and  RELEVANT IS CODE ",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 11529,
+                "client_name": "DELHI JAL BOARD, GOVT OF NCT OF DELHI OVER HEAD TANK,  ASHOK VIHAR, DELHI (MS-YADAV CONSTRUCTION COMPANY)",
+                "reference_no": "121399_DJB/EE M-14/2023-24/01/SITE (05/05/2025)",
+                "pending_items_count": 1,
+                "upload_letter_url": "/DJB_003.jpg",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLC.20250505010",
+                        "sample_description": "WATER SAMPLE & SOURCE OF WATER- FEIM WATER TANKERS",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS:10500 FOR DRINKIND AND CONSTRUCTION PURPOSE",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 12297,
+                "client_name": "DMRC (DELHI METRO RAIL CORPORATION LIMITED) (MAJLIS PARK -M/S AFCONS)",
+                "reference_no": "23272_DMRC/CPM-3/TESTING OF MATERIAL/PH-IV/677/VOL",
+                "pending_items_count": 1,
+                "upload_letter_url": "/288 -JUN23 DMRC (DELHI METRO CORPORATION LTD) (MAJLIS PARK) (MS AFCONS) LTRNO 2803A 20062023.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLM.20230621030",
+                        "sample_description": "TMT BAR Dia -12mm Make-Sail Grade -fe 500d Inv No. 0s0010000090",
+                        "sample_quality": "Standard",
+                        "particulars": "PHYSICAL  and  CHEMICAL TEST",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            },
+            {
+                "id": 15881,
+                "client_name": "NEW DELHI RAILWAY  and  HNZM RLY STATION (M/S RAJSHYAMA CONSTRUCTION PVT LTD.)",
+                "reference_no": "20112_G-2/NDLS 29/05/2023",
+                "pending_items_count": 1,
+                "upload_letter_url": "/02  -JUN23 NEW DELHI RAILWAY  and  HNZM RLY STATION (RAJSHYAMA CONSTRUCTION PVT LTD) 29052023.pdf",
+                "pending_items": [
+                    {
+                        "job_order_no": "ITLC.20230530005",
+                        "sample_description": "WATER ",
+                        "sample_quality": "Standard",
+                        "particulars": "AS PER IS ",
+                        "receiver": "Super Admin 1"
+                    }
+                ]
+            }
+        ],
+        "meta": {
+            "total": 426,
+            "per_page": 25,
+            "current_page": 1,
+            "last_page": 18
+        }
+    }
+}

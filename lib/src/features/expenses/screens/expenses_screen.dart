@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:itl/src/config/constants.dart';
 import 'package:itl/src/services/api_service.dart';
@@ -197,19 +198,67 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setSheetState) {
           Future<void> pickFile() async {
-            final result = await FilePicker.platform.pickFiles(
-              type: FileType.custom,
-              allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+            showModalBottomSheet(
+              context: context,
+              builder: (bsContext) => SafeArea(
+                child: Wrap(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.camera_alt),
+                      title: const Text('Camera'),
+                      onTap: () async {
+                        Navigator.pop(bsContext);
+                        final picker = ImagePicker();
+                        final photo =
+                            await picker.pickImage(source: ImageSource.camera);
+                        if (photo != null) {
+                          setSheetState(() {
+                            filePath = photo.path;
+                            fileName = photo.name;
+                          });
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.photo_library),
+                      title: const Text('Gallery'),
+                      onTap: () async {
+                        Navigator.pop(bsContext);
+                        final picker = ImagePicker();
+                        final image =
+                            await picker.pickImage(source: ImageSource.gallery);
+                        if (image != null) {
+                          setSheetState(() {
+                            filePath = image.path;
+                            fileName = image.name;
+                          });
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.attach_file),
+                      title: const Text('File / PDF'),
+                      onTap: () async {
+                        Navigator.pop(bsContext);
+                        final result = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+                        );
+                        if (result != null) {
+                          final file = result.files.single;
+                          if (file.path != null) {
+                            setSheetState(() {
+                              filePath = file.path;
+                              fileName = file.name;
+                            });
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
             );
-            if (result != null) {
-              final file = result.files.single;
-              if (file.path != null) {
-                setSheetState(() {
-                  filePath = file.path;
-                  fileName = file.name;
-                });
-              }
-            }
           }
 
           Future<void> pickDate() async {
@@ -248,7 +297,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 amount: amount,
                 section: sectionController.text.isNotEmpty
                     ? sectionController.text
-                    : null,
+                    : 'General',
                 fromDate: DateFormat('yyyy-MM-dd').format(selectedDate!),
                 description: descriptionController.text,
                 filePath: filePath,

@@ -160,13 +160,14 @@ class BookingGrouped {
 
     var reportList = <ReportFile>[];
 
-    if (json['report_files'] != null) {
-      if (json['report_files'] is List) {
-        for (var v in json['report_files']) {
+    final reportFilesData = json['report_files'] ?? json['letter_files'];
+    if (reportFilesData != null) {
+      if (reportFilesData is List) {
+        for (var v in reportFilesData) {
           reportList.add(ReportFile.fromJson(v));
         }
-      } else if (json['report_files'] is Map) {
-        for (var v in json['report_files'].values) {
+      } else if (reportFilesData is Map) {
+        for (var v in reportFilesData.values) {
           reportList.add(ReportFile.fromJson(v));
         }
       }

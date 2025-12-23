@@ -41,7 +41,9 @@ class ExpenseItem {
       submittedForApproval: json['submitted_for_approval'] == true ||
           json['submitted_for_approval'] == 1,
       description: json['description']?.toString(),
-      fileUrl: json['receipt_url']?.toString() ?? json['file_url']?.toString(),
+      fileUrl: json['receipt_url']?.toString() ??
+          json['file_url']?.toString() ??
+          json['file_path']?.toString(), // Added file_path just in case
       receiptFilename: json['receipt_filename']?.toString(),
       status: json['status']?.toString() ?? 'pending',
     );

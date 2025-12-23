@@ -11,12 +11,15 @@ import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/features/auth/screens/login_page.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 import 'package:itl/src/features/bookings/bookings.dart';
+import 'package:itl/src/features/reports/screens/reports_dashboard_screen.dart';
+import 'package:itl/src/features/reports/screens/pending_dashboard_screen.dart';
 import 'package:itl/src/features/expenses/screens/expenses_screen.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/features/bookings/models/marketing_overview.dart';
 import 'package:itl/src/utils/currency_formatter.dart';
 import 'package:itl/src/features/invoices/screens/invoice_list_screen.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -239,6 +242,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => const InvoiceListScreen(),
+                    ),
+                  );
+                },
+              ),
+            if (_isUser)
+              ListTile(
+                leading: const Icon(Icons.assignment_outlined),
+                title: const Text('Reports'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ReportsDashboardScreen(
+                          userCode: _apiService.userCode ?? ''),
+                    ),
+                  );
+                },
+              ),
+            if (_isUser)
+              ListTile(
+                leading: const Icon(Icons.pending_actions),
+                title: const Text('Pending Reports'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => PendingDashboardScreen(
+                          userCode: _apiService.userCode ?? ''),
                     ),
                   );
                 },
@@ -1238,23 +1269,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     )
                   else
                     OutlinedButton.icon(
-                      onPressed: () async {
-                        FilePickerResult? result =
-                            await FilePicker.platform.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-                        );
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          builder: (ctx) => SafeArea(
+                            child: Wrap(
+                              children: [
+                                ListTile(
+                                  leading: const Icon(Icons.camera_alt),
+                                  title: const Text('Camera'),
+                                  onTap: () async {
+                                    Navigator.pop(ctx);
+                                    final picker = ImagePicker();
+                                    final photo = await picker.pickImage(
+                                        source: ImageSource.camera);
+                                    if (photo != null) {
+                                      setState(() {
+                                        selectedFilePath = photo.path;
+                                        selectedFileName = photo.name;
+                                      });
+                                    }
+                                  },
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.photo_library),
+                                  title: const Text('Gallery'),
+                                  onTap: () async {
+                                    Navigator.pop(ctx);
+                                    final picker = ImagePicker();
+                                    final image = await picker.pickImage(
+                                        source: ImageSource.gallery);
+                                    if (image != null) {
+                                      setState(() {
+                                        selectedFilePath = image.path;
+                                        selectedFileName = image.name;
+                                      });
+                                    }
+                                  },
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.attach_file),
+                                  title: const Text('File / PDF'),
+                                  onTap: () async {
+                                    Navigator.pop(ctx);
+                                    FilePickerResult? result =
+                                        await FilePicker.platform.pickFiles(
+                                      type: FileType.custom,
+                                      allowedExtensions: [
+                                        'jpg',
+                                        'jpeg',
+                                        'png',
+                                        'pdf'
+                                      ],
+                                    );
 
-                        if (result != null &&
-                            result.files.single.path != null) {
-                          setState(() {
-                            selectedFilePath = result.files.single.path!;
-                            selectedFileName = result.files.single.name;
-                          });
-                        }
+                                    if (result != null &&
+                                        result.files.single.path != null) {
+                                      setState(() {
+                                        selectedFilePath =
+                                            result.files.single.path!;
+                                        selectedFileName =
+                                            result.files.single.name;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
                       },
-                      icon: const Icon(Icons.upload_file),
-                      label: const Text('Attach Receipt (Optional)'),
+                      icon: const Icon(Icons.add_a_photo),
+                      label: const Text('Attach Receipt'),
                     ),
                 ],
               ),
@@ -1288,6 +1374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     await _marketingService.createExpense(
                       userCode: userCode,
                       amount: amount,
+                      section: 'General',
                       description: desc,
                       fromDate: DateTime.now().toString().split(' ')[0],
                       filePath: file,

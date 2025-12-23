@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/features/bookings/models/booking_model.dart';
 import 'package:itl/src/features/bookings/models/marketing_overview.dart';
+import 'package:itl/src/features/reports/models/report_model.dart';
 import 'package:itl/src/features/invoices/models/invoice_model.dart';
 import 'package:itl/src/features/expenses/models/expense_model.dart';
+import 'package:itl/src/features/reports/models/pending_report_model.dart';
 
 class MarketingService {
   final ApiService _apiService = ApiService();
@@ -231,11 +233,9 @@ class MarketingService {
         '${ApiService.baseUrl}/marketing-person/$userCode/personal/expenses');
 
     var request = http.MultipartRequest('POST', uri);
-    // Headers must include auth, but Content-type for multipart is set automatically by request
     request.headers.addAll({
       'Accept': 'application/json',
       'Authorization': 'Bearer ${_apiService.token}',
-      // Do NOT set Content-Type here, http package handles it with boundary
     });
 
     request.fields['amount'] = amount.toString();
@@ -244,6 +244,7 @@ class MarketingService {
     if (description != null) request.fields['description'] = description;
 
     if (filePath != null) {
+      // API accepts 'file' or 'pdf'
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
     }
 
@@ -251,15 +252,144 @@ class MarketingService {
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
 
+    debugPrint(
+        'Create Expense Response: ${response.statusCode} ${response.body}');
+
     if (response.statusCode == 201 || response.statusCode == 200) {
       final json = jsonDecode(response.body);
+      // Response shape: { success: true, data: {...}, submitted_for_approval: bool }
       if (json['data'] != null) {
         return ExpenseItem.fromJson(json['data']);
       }
       return ExpenseItem.fromJson(json);
     } else {
-      debugPrint('Failed to create expense: ${response.body}');
       throw Exception('Failed to create expense: ${response.body}');
+    }
+  }
+
+  Future<ReportResponse> getReports({
+    required String userCode,
+    int page = 1,
+    String? search,
+    int? month,
+    int? year,
+    int perPage = 25,
+  }) async {
+    final queryParams = {
+      'page': page.toString(),
+      'perPage': perPage.toString(),
+      if (month != null) 'month': month.toString(),
+      if (year != null) 'year': year.toString(),
+      if (search != null && search.isNotEmpty) 'search': search,
+    };
+
+    final uri = Uri.parse(
+            '${ApiService.baseUrl}/marketing-person/$userCode/reports/by-job-order')
+        .replace(queryParameters: queryParams);
+
+    debugPrint('Fetching reports: $uri');
+
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      if (json['data'] != null) {
+        return ReportResponse.fromJson(json['data']);
+      }
+      return ReportResponse(
+          items: [], total: 0, perPage: perPage, currentPage: 1, lastPage: 1);
+    } else {
+      throw Exception(
+          'Failed to load reports: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  Future<BookingGroupedResponse> getReportsByLetter({
+    required String userCode,
+    int page = 1,
+    String? search,
+    int? month,
+    int? year,
+    int perPage = 25,
+  }) async {
+    final queryParams = {
+      'page': page.toString(),
+      'perPage': perPage.toString(),
+      if (month != null) 'month': month.toString(),
+      if (year != null) 'year': year.toString(),
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (search != null && search.isNotEmpty) 'department': '0',
+    };
+
+    final uri = Uri.parse(
+            '${ApiService.baseUrl}/marketing-person/$userCode/bookings/view-by-letter')
+        .replace(queryParameters: queryParams);
+
+    debugPrint('Fetching reports by letter: $uri');
+
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      if (json['data'] != null) {
+        return BookingGroupedResponse.fromJson(json['data']);
+      }
+      return BookingGroupedResponse(
+          bookings: [],
+          total: 0,
+          currentPage: 1,
+          lastPage: 1,
+          perPage: perPage);
+    } else {
+      throw Exception(
+          'Failed to load reports by letter: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  Future<PendingResponse> getPendingReports({
+    required String userCode,
+    String mode = 'job',
+    int page = 1,
+    int perPage = 25,
+    String? search,
+    int? month,
+    int? year,
+    bool overdue = false,
+    int? department,
+  }) async {
+    final queryParams = {
+      'mode': mode,
+      'page': page.toString(),
+      'perPage': perPage.toString(),
+      if (month != null) 'month': month.toString(),
+      if (year != null) 'year': year.toString(),
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (overdue) 'overdue': '1',
+      if (department != null) 'department': department.toString(),
+    };
+
+    final uri = Uri.parse(
+            '${ApiService.baseUrl}/marketing-person/$userCode/reports/pendings')
+        .replace(queryParameters: queryParams);
+
+    debugPrint('Fetching pending reports ($mode): $uri');
+
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      if (json['data'] != null) {
+        return PendingResponse.fromJson(json['data']);
+      }
+      return PendingResponse(
+        total: 0,
+        perPage: perPage,
+        currentPage: 1,
+        lastPage: 1,
+      );
+    } else {
+      throw Exception(
+          'Failed to load pending reports: ${response.statusCode} ${response.body}');
     }
   }
 }
