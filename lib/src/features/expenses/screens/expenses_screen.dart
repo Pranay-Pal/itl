@@ -6,6 +6,7 @@ import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/features/expenses/models/expense_model.dart';
 import 'package:itl/src/services/download_util.dart';
+import 'package:itl/src/shared/screens/pdf_viewer_screen.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -19,6 +20,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   final ApiService _apiService = ApiService();
 
   List<ExpenseItem> _items = [];
+  ExpenseTotals? _totals;
   bool _loading = false;
   int _page = 1;
   int _lastPage = 1;
@@ -77,8 +79,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         setState(() {
           if (reset) {
             _items = response.items;
+            _totals = response.totals;
           } else {
             _items.addAll(response.items);
+            // Keep existing totals or update if needed? usually totals are global for the filter
+            if (response.totals != null) _totals = response.totals;
           }
           _lastPage = response.lastPage;
           _page = response.currentPage;
@@ -119,7 +124,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int?>(
-                value: tempMonth,
+                initialValue: tempMonth,
                 decoration: const InputDecoration(labelText: 'Month'),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('All')),
@@ -133,7 +138,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int?>(
-                value: tempYear,
+                initialValue: tempYear,
                 decoration: const InputDecoration(labelText: 'Year'),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('All')),
@@ -244,7 +249,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 section: sectionController.text.isNotEmpty
                     ? sectionController.text
                     : null,
-                expenseDate: DateFormat('yyyy-MM-dd').format(selectedDate!),
+                fromDate: DateFormat('yyyy-MM-dd').format(selectedDate!),
                 description: descriptionController.text,
                 filePath: filePath,
               );
@@ -367,10 +372,39 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 80, top: 10, left: 10, right: 10),
-      itemCount: _items.length + 1,
+      itemCount: _items.length + 2, // +1 for summary, +1 for loader/end
       separatorBuilder: (ctx, i) => const SizedBox(height: 10),
       itemBuilder: (ctx, i) {
-        if (i == _items.length) {
+        if (i == 0) {
+          if (_totals == null) return const SizedBox.shrink();
+          return Card(
+            elevation: 2,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            color: Colors.blue.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: IntrinsicHeight(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildSummaryItem(
+                        'Total', _totals!.totalAmount, Colors.blue),
+                    const VerticalDivider(),
+                    _buildSummaryItem(
+                        'Approved', _totals!.approvedAmount, Colors.green),
+                    const VerticalDivider(),
+                    _buildSummaryItem(
+                        'Pending', _totals!.pendingAmount, Colors.orange),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        final index = i - 1;
+        if (index == _items.length) {
           if (_page < _lastPage) {
             return Center(
               child: TextButton(
@@ -380,7 +414,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           return const SizedBox.shrink();
         }
 
-        final item = _items[i];
+        final item = _items[index];
+        final isApproved = item.status.toLowerCase() == 'approved';
+
         return Card(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -402,7 +438,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                          color: _getStatusColor(item.status).withOpacity(0.1),
+                          color: _getStatusColor(item.status)
+                              .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                           border:
                               Border.all(color: _getStatusColor(item.status))),
@@ -414,6 +451,26 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     )
                   ],
                 ),
+                if (isApproved && item.approvedAmount != item.amount) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Approved: ${_currencyFormat.format(item.approvedAmount)}',
+                    style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13),
+                  ),
+                ],
+                if (item.dueAmount > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Due: ${_currencyFormat.format(item.dueAmount)}',
+                    style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Text(item.description ?? 'No description',
                     style: const TextStyle(color: Colors.black87)),
@@ -434,9 +491,41 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       ],
                     ),
                     if (item.fileUrl != null)
-                      IconButton(
-                        icon: const Icon(Icons.description, color: Colors.blue),
-                        onPressed: () => downloadAndOpen(item.fileUrl!),
+                      SizedBox(
+                        height: 32,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.visibility, size: 16),
+                          label: const Text('View',
+                              style: TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade50,
+                            foregroundColor: Colors.blue,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          onPressed: () {
+                            final url = item.fileUrl!;
+                            final ext = url
+                                .split('.')
+                                .last
+                                .split('?')
+                                .first
+                                .toLowerCase();
+                            if (ext == 'pdf') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PdfViewerScreen(
+                                    url: url,
+                                    title: item.receiptFilename ?? 'Receipt',
+                                  ),
+                                ),
+                              );
+                            } else {
+                              downloadAndOpen(url);
+                            }
+                          },
+                        ),
                       )
                   ],
                 )
@@ -448,9 +537,35 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-  Color _getStatusColor(int status) {
-    if (status == 1) return Colors.green;
-    if (status == 2) return Colors.red;
-    return Colors.orange;
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'pending':
+      default:
+        return Colors.orange;
+    }
+  }
+
+  Widget _buildSummaryItem(String label, double amount, Color color) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700]),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _currencyFormat.format(amount),
+          style: TextStyle(
+              fontSize: 16, fontWeight: FontWeight.bold, color: color),
+        ),
+      ],
+    );
   }
 }

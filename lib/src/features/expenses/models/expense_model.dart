@@ -1,19 +1,29 @@
+import 'package:flutter/foundation.dart';
+
 class ExpenseItem {
   final int id;
   final String section;
   final String? expenseDate;
   final double amount;
+  final double approvedAmount;
+  final double dueAmount;
+  final bool submittedForApproval;
   final String? description;
   final String? fileUrl;
-  final int status; // 0: pending, 1: approved, 2: rejected
+  final String? receiptFilename;
+  final String status; // "approved", "rejected", "pending"
 
   ExpenseItem({
     required this.id,
     required this.section,
     this.expenseDate,
     required this.amount,
+    this.approvedAmount = 0.0,
+    this.dueAmount = 0.0,
+    this.submittedForApproval = false,
     this.description,
     this.fileUrl,
+    this.receiptFilename,
     required this.status,
   });
 
@@ -25,41 +35,59 @@ class ExpenseItem {
       section: json['section']?.toString() ?? 'personal',
       expenseDate: json['expense_date']?.toString(),
       amount: double.tryParse(json['amount']?.toString() ?? '0') ?? 0.0,
+      approvedAmount:
+          double.tryParse(json['approved_amount']?.toString() ?? '0') ?? 0.0,
+      dueAmount: double.tryParse(json['due_amount']?.toString() ?? '0') ?? 0.0,
+      submittedForApproval: json['submitted_for_approval'] == true ||
+          json['submitted_for_approval'] == 1,
       description: json['description']?.toString(),
-      fileUrl: json['file_url']?.toString(),
-      status: json['status'] is int
-          ? json['status']
-          : (int.tryParse(json['status']?.toString() ?? '0') ?? 0),
+      fileUrl: json['receipt_url']?.toString() ?? json['file_url']?.toString(),
+      receiptFilename: json['receipt_filename']?.toString(),
+      status: json['status']?.toString() ?? 'pending',
     );
   }
 
   String get statusLabel {
-    switch (status) {
-      case 1:
-        return 'Approved';
-      case 2:
-        return 'Rejected';
-      case 0:
-      default:
-        return 'Pending';
-    }
+    final s = status.toLowerCase();
+    if (s == 'approved') return 'Approved';
+    if (s == 'rejected') return 'Rejected';
+    return 'Pending';
   }
 
   String get statusClass {
-    switch (status) {
-      case 1:
-        return 'success';
-      case 2:
-        return 'danger';
-      case 0:
-      default:
-        return 'warning';
-    }
+    final s = status.toLowerCase();
+    if (s == 'approved') return 'success';
+    if (s == 'rejected') return 'danger';
+    return 'warning';
+  }
+}
+
+class ExpenseTotals {
+  final double totalAmount;
+  final double approvedAmount;
+  final double pendingAmount;
+
+  ExpenseTotals({
+    required this.totalAmount,
+    required this.approvedAmount,
+    required this.pendingAmount,
+  });
+
+  factory ExpenseTotals.fromJson(Map<String, dynamic> json) {
+    return ExpenseTotals(
+      totalAmount:
+          double.tryParse(json['total_amount']?.toString() ?? '0') ?? 0.0,
+      approvedAmount:
+          double.tryParse(json['approved_amount']?.toString() ?? '0') ?? 0.0,
+      pendingAmount:
+          double.tryParse(json['pending_amount']?.toString() ?? '0') ?? 0.0,
+    );
   }
 }
 
 class ExpenseResponse {
   final List<ExpenseItem> items;
+  final ExpenseTotals? totals;
   final int total;
   final int perPage;
   final int currentPage;
@@ -67,6 +95,7 @@ class ExpenseResponse {
 
   ExpenseResponse({
     required this.items,
+    this.totals,
     required this.total,
     required this.perPage,
     required this.currentPage,
@@ -86,12 +115,12 @@ class ExpenseResponse {
         if (rawItems is Map &&
             rawItems.containsKey('data') &&
             rawItems['data'] is List) {
-          print(
+          debugPrint(
               'ExpenseResponse: Detected nested paginator in items. Extracting items["data"].');
           rawItems = rawItems['data'];
         }
 
-        print(
+        debugPrint(
             'ExpenseResponse: Processing items of type ${rawItems.runtimeType}');
 
         if (rawItems is List) {
@@ -104,7 +133,7 @@ class ExpenseResponse {
           }
         } else if (rawItems is Map) {
           // Fallback for Map-based list (rare but possible)
-          print(
+          debugPrint(
               'ExpenseResponse: rawItems is Map (non-standard list structure).');
           for (var v in rawItems.values) {
             if (v is Map<String, dynamic>) {
@@ -115,6 +144,14 @@ class ExpenseResponse {
           }
         }
       }
+    }
+
+    // Parse Totals
+    ExpenseTotals? totals;
+    // According to docs: data.totals
+    if (dataRoot is Map && dataRoot['totals'] != null) {
+      totals =
+          ExpenseTotals.fromJson(Map<String, dynamic>.from(dataRoot['totals']));
     }
 
     // Pagination
@@ -136,6 +173,7 @@ class ExpenseResponse {
 
     return ExpenseResponse(
       items: itemsList,
+      totals: totals,
       total: total,
       perPage: perPage,
       currentPage: currentPage,

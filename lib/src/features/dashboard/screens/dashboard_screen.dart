@@ -1123,7 +1123,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.orange.withOpacity(0.3),
+              color: Colors.orange.withValues(alpha: 0.3),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -1134,7 +1134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.add, color: Colors.white),
@@ -1277,9 +1277,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   final desc = descriptionController.text;
                   final file = selectedFilePath;
 
+                  final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(ctx);
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(content: Text('Adding expense...')),
                   );
 
@@ -1288,18 +1289,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       userCode: userCode,
                       amount: amount,
                       description: desc,
-                      expenseDate: DateTime.now().toString().split(' ')[0],
+                      fromDate: DateTime.now().toString().split(' ')[0],
                       filePath: file,
                     );
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         const SnackBar(
                             content: Text('Expense added successfully!')),
                       );
                     }
                   } catch (e) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(content: Text('Failed: $e')),
                       );
                     }

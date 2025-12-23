@@ -223,7 +223,7 @@ class MarketingService {
     required String userCode,
     required double amount,
     String? section,
-    String? expenseDate,
+    String? fromDate,
     String? description,
     String? filePath,
   }) async {
@@ -240,7 +240,7 @@ class MarketingService {
 
     request.fields['amount'] = amount.toString();
     if (section != null) request.fields['section'] = section;
-    if (expenseDate != null) request.fields['expense_date'] = expenseDate;
+    if (fromDate != null) request.fields['from_date'] = fromDate;
     if (description != null) request.fields['description'] = description;
 
     if (filePath != null) {
