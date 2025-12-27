@@ -1,12 +1,21 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:itl/src/config/constants.dart';
-import 'package:itl/src/services/api_service.dart';
-import 'package:itl/src/services/marketing_service.dart';
+import 'package:itl/src/common/animations/scale_button.dart';
+import 'package:itl/src/common/widgets/design_system/aurora_background.dart';
+import 'package:itl/src/common/widgets/design_system/compact_data_tile.dart';
+import 'package:itl/src/common/widgets/design_system/filter_island.dart';
+import 'package:itl/src/common/widgets/design_system/glass_container.dart';
+import 'package:itl/src/config/app_layout.dart';
+import 'package:itl/src/config/app_palette.dart';
+import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/expenses/models/expense_model.dart';
+import 'package:itl/src/features/expenses/models/checked_in_expense_model.dart';
+import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/services/download_util.dart';
+import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/shared/screens/pdf_viewer_screen.dart';
 
 class ExpensesScreen extends StatefulWidget {
@@ -21,6 +30,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   final ApiService _apiService = ApiService();
 
   List<ExpenseItem> _items = [];
+  List<CheckedInExpense> _checkedInItems = [];
+  String _viewMode = 'personal'; // 'personal' or 'checked_in'
   ExpenseTotals? _totals;
   bool _loading = false;
   int _page = 1;
@@ -41,6 +52,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   @override
   void initState() {
     super.initState();
+    // Default to 'checked_in' if userCode is null (likely Admin)
+    if (_apiService.userCode == null) {
+      _viewMode = 'checked_in';
+    }
     _loadExpenses(reset: true);
   }
 
@@ -50,12 +65,26 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     super.dispose();
   }
 
+  List<String> get _activeFilters {
+    final List<String> filters = [];
+    if (_searchTerm.isNotEmpty) filters.add('Search: "$_searchTerm"');
+    if (_selectedMonth != null) {
+      filters.add(DateFormat.MMMM().format(DateTime(0, _selectedMonth!)));
+    }
+    if (_selectedYear != null) filters.add('Year: $_selectedYear');
+    return filters;
+  }
+
   Future<void> _loadExpenses({bool reset = false}) async {
     if (_loading) return;
 
     final userCode = _apiService.userCode;
-    if (userCode == null) {
-      _showSnack('User code not found');
+    // Only block if trying to view Personal expenses without a userCode
+    if (userCode == null && _viewMode == 'personal') {
+      // Ideally this state shouldn't be reachable if we default correctly,
+      // but strictly guarding it is good.
+      // We won't show a snackbar on init if validly in checked_in mode
+      if (mounted) setState(() => _loading = false);
       return;
     }
 
@@ -63,35 +92,63 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       _loading = true;
       if (reset) {
         _page = 1;
-        _items = [];
+        if (_viewMode == 'personal') {
+          _items = [];
+        } else {
+          _checkedInItems = [];
+        }
       }
     });
 
     try {
-      final response = await _marketingService.getExpenses(
-        userCode: userCode,
-        page: _page,
-        month: _selectedMonth,
-        year: _selectedYear,
-        search: _searchTerm,
-      );
+      if (_viewMode == 'personal') {
+        final response = await _marketingService.getExpenses(
+          userCode: userCode!,
+          page: _page,
+          month: _selectedMonth,
+          year: _selectedYear,
+          search: _searchTerm,
+        );
 
-      if (mounted) {
-        setState(() {
-          if (reset) {
-            _items = response.items;
-            _totals = response.totals;
-          } else {
-            _items.addAll(response.items);
-            // Keep existing totals or update if needed? usually totals are global for the filter
-            if (response.totals != null) _totals = response.totals;
-          }
-          _lastPage = response.lastPage;
-          _page = response.currentPage;
-        });
+        if (mounted) {
+          setState(() {
+            if (reset) {
+              _items = response.items;
+              _totals = response.totals;
+            } else {
+              _items.addAll(response.items);
+              if (response.totals != null) _totals = response.totals;
+            }
+            _lastPage = response.lastPage;
+            _page = response.currentPage;
+          });
+        }
+      } else {
+        // Checked-In Logic
+        final response = await _marketingService.getCheckedInExpenses(
+          page: _page,
+          perPage: 15, // Default from API
+          search: _searchTerm,
+          month: _selectedMonth,
+          year: _selectedYear,
+          mine: true, // As per requirements
+        );
+
+        if (mounted) {
+          setState(() {
+            if (reset) {
+              _checkedInItems = response.items;
+            } else {
+              _checkedInItems.addAll(response.items);
+            }
+            _lastPage = response.lastPage;
+            _page = response.currentPage;
+            // No totals object for checked-in
+          });
+        }
       }
     } catch (e) {
-      _showSnack('Failed to load expenses: $e');
+      _showSnack('Failed to load data: $e');
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -108,73 +165,102 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
   }
 
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _searchTerm = '';
+      _selectedMonth = null;
+      _selectedYear = null;
+    });
+    _loadExpenses(reset: true);
+  }
+
   void _openFilterDialog() {
     showDialog(
       context: context,
       builder: (ctx) {
         int? tempMonth = _selectedMonth;
         int? tempYear = _selectedYear;
+        // Local controller for the dialog to avoid interference if cancelled
+        final tempSearch = TextEditingController(text: _searchTerm);
+
         return AlertDialog(
-          title: const Text('Filter Expenses'),
+          title: Text('Filter Expenses', style: AppTypography.headlineMedium),
+          backgroundColor: Theme.of(context).cardColor,
+          surfaceTintColor: Colors.transparent,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(labelText: 'Search'),
+                controller: tempSearch,
+                decoration: InputDecoration(
+                  labelText: 'Search',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                initialValue: tempMonth,
-                decoration: const InputDecoration(labelText: 'Month'),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All')),
-                  ...List.generate(12, (i) => i + 1).map((m) =>
-                      DropdownMenuItem(
-                          value: m,
-                          child:
-                              Text(DateFormat.MMMM().format(DateTime(0, m)))))
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int?>(
+                      initialValue: tempMonth,
+                      decoration: InputDecoration(
+                        labelText: 'Month',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('All')),
+                        ...List.generate(12, (i) => i + 1).map((m) =>
+                            DropdownMenuItem(
+                                value: m,
+                                child: Text(
+                                    DateFormat.MMM().format(DateTime(0, m)))))
+                      ],
+                      onChanged: (v) => tempMonth = v,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<int?>(
+                      initialValue: tempYear,
+                      decoration: InputDecoration(
+                        labelText: 'Year',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('All')),
+                        ...List.generate(5, (i) => DateTime.now().year - i).map(
+                            (y) => DropdownMenuItem(
+                                value: y, child: Text(y.toString())))
+                      ],
+                      onChanged: (v) => tempYear = v,
+                    ),
+                  ),
                 ],
-                onChanged: (v) => tempMonth = v,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                initialValue: tempYear,
-                decoration: const InputDecoration(labelText: 'Year'),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All')),
-                  ...List.generate(5, (i) => DateTime.now().year - i).map((y) =>
-                      DropdownMenuItem(value: y, child: Text(y.toString())))
-                ],
-                onChanged: (v) => tempYear = v,
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                _searchController.clear();
-                setState(() {
-                  _searchTerm = '';
-                  _selectedMonth = null;
-                  _selectedYear = null;
-                });
-                Navigator.pop(ctx);
-                _loadExpenses(reset: true);
-              },
-              child: const Text('Clear'),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 setState(() {
-                  _searchTerm = _searchController.text;
+                  _searchTerm = tempSearch.text;
+                  _searchController.text = tempSearch.text;
                   _selectedMonth = tempMonth;
                   _selectedYear = tempYear;
                 });
                 Navigator.pop(ctx);
                 _loadExpenses(reset: true);
               },
-              child: const Text('Apply'),
+              child: const Text('Apply Filters'),
             ),
           ],
         );
@@ -194,12 +280,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
+      backgroundColor: Colors.transparent, // For glass effect
       builder: (ctx) => StatefulBuilder(
         builder: (context, setSheetState) {
           Future<void> pickFile() async {
+            // ... (keeping existing pick logic wrapper)
             showModalBottomSheet(
               context: context,
+              backgroundColor: Theme.of(context).cardColor,
               builder: (bsContext) => SafeArea(
                 child: Wrap(
                   children: [
@@ -309,65 +397,113 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             }
           }
 
-          return Padding(
-            padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 16,
-                right: 16,
-                top: 16),
-            child: Form(
-              key: formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('New Expense',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: amountController,
-                      decoration: const InputDecoration(labelText: 'Amount *'),
-                      keyboardType: TextInputType.number,
-                      validator: (v) => v!.isEmpty ? 'Required' : null,
+          return Container(
+            margin: EdgeInsets.only(
+                top: 40, bottom: MediaQuery.of(context).viewInsets.bottom),
+            decoration: const BoxDecoration(
+              color: Colors.white, // Fallback / Base
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: GlassContainer(
+              // Using GlassContainer as a wrapper for style
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text('New Expense',
+                            style: AppTypography.headlineMedium),
+                        const SizedBox(height: 24),
+                        TextFormField(
+                          controller: amountController,
+                          decoration: InputDecoration(
+                            labelText: 'Amount *',
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            prefixIcon: const Icon(Icons.currency_rupee),
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (v) => v!.isEmpty ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: sectionController,
+                          decoration: InputDecoration(
+                            labelText: 'Category (Optional)',
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            prefixIcon: const Icon(Icons.category_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        InkWell(
+                          onTap: pickDate,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'Date',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              prefixIcon:
+                                  const Icon(Icons.calendar_today_outlined),
+                            ),
+                            child: Text(
+                              selectedDate != null
+                                  ? DateFormat('dd MMM yyyy')
+                                      .format(selectedDate!)
+                                  : 'Select Date',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: descriptionController,
+                          decoration: InputDecoration(
+                            labelText: 'Description',
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            prefixIcon: const Icon(Icons.description_outlined),
+                          ),
+                          maxLines: 2,
+                        ),
+                        const SizedBox(height: 16),
+                        ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                                color: Theme.of(context).dividerColor),
+                          ),
+                          leading: const Icon(Icons.attach_file),
+                          title: Text(fileName ?? 'Attach Receipt (Optional)'),
+                          trailing: fileName != null
+                              ? const Icon(Icons.check_circle,
+                                  color: Colors.green)
+                              : null,
+                          onTap: pickFile,
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppPalette.electricBlue,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Submit Expense'),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: sectionController,
-                      decoration: const InputDecoration(
-                          labelText: 'Category (Optional)'),
-                    ),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: pickDate,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Date'),
-                        child: Text(selectedDate != null
-                            ? DateFormat('dd MMM yyyy').format(selectedDate!)
-                            : 'Select Date'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: descriptionController,
-                      decoration:
-                          const InputDecoration(labelText: 'Description'),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.attach_file),
-                      title: Text(fileName ?? 'Attach Receipt (Optional)'),
-                      onTap: pickFile,
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: submit,
-                      child: const Text('Submit'),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -382,208 +518,21 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        flexibleSpace:
-            Container(decoration: BoxDecoration(gradient: kBlueGradient)),
-        title: const Text('Expenses', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _openFilterDialog,
+  void _viewReceipt(String url, String title) {
+    final ext = url.split('.').last.split('?').first.toLowerCase();
+    if (ext == 'pdf') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PdfViewerScreen(
+            url: url,
+            title: title,
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => _loadExpenses(reset: true),
-          )
-        ],
-      ),
-      body: _buildList(),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreateExpenseDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Expense'),
-      ),
-    );
-  }
-
-  Widget _buildList() {
-    if (_loading && _items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+        ),
+      );
+    } else {
+      downloadAndOpen(url);
     }
-
-    if (_items.isEmpty) {
-      return const Center(child: Text('No expenses found'));
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.only(bottom: 80, top: 10, left: 10, right: 10),
-      itemCount: _items.length + 2, // +1 for summary, +1 for loader/end
-      separatorBuilder: (ctx, i) => const SizedBox(height: 10),
-      itemBuilder: (ctx, i) {
-        if (i == 0) {
-          if (_totals == null) return const SizedBox.shrink();
-          return Card(
-            elevation: 2,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            color: Colors.blue.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: IntrinsicHeight(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildSummaryItem(
-                        'Total', _totals!.totalAmount, Colors.blue),
-                    const VerticalDivider(),
-                    _buildSummaryItem(
-                        'Approved', _totals!.approvedAmount, Colors.green),
-                    const VerticalDivider(),
-                    _buildSummaryItem(
-                        'Pending', _totals!.pendingAmount, Colors.orange),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        final index = i - 1;
-        if (index == _items.length) {
-          if (_page < _lastPage) {
-            return Center(
-              child: TextButton(
-                  onPressed: _loadMore, child: const Text('Load More')),
-            );
-          }
-          return const SizedBox.shrink();
-        }
-
-        final item = _items[index];
-        final isApproved = item.status.toLowerCase() == 'approved';
-
-        return Card(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 2,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _currencyFormat.format(item.amount),
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                          color: _getStatusColor(item.status)
-                              .withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border:
-                              Border.all(color: _getStatusColor(item.status))),
-                      child: Text(
-                        item.statusLabel,
-                        style: TextStyle(
-                            color: _getStatusColor(item.status), fontSize: 12),
-                      ),
-                    )
-                  ],
-                ),
-                if (isApproved && item.approvedAmount != item.amount) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Approved: ${_currencyFormat.format(item.approvedAmount)}',
-                    style: const TextStyle(
-                        color: Colors.green,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13),
-                  ),
-                ],
-                if (item.dueAmount > 0) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Due: ${_currencyFormat.format(item.dueAmount)}',
-                    style: const TextStyle(
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(item.description ?? 'No description',
-                    style: const TextStyle(color: Colors.black87)),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (item.expenseDate != null)
-                          Text(item.expenseDate!,
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 12)),
-                        Text('Category: ${item.section}',
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 12)),
-                      ],
-                    ),
-                    if (item.fileUrl != null)
-                      SizedBox(
-                        height: 32,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.visibility, size: 16),
-                          label: const Text('View',
-                              style: TextStyle(fontSize: 12)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade50,
-                            foregroundColor: Colors.blue,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                          ),
-                          onPressed: () {
-                            final url = item.fileUrl!;
-                            final ext = url
-                                .split('.')
-                                .last
-                                .split('?')
-                                .first
-                                .toLowerCase();
-                            if (ext == 'pdf') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PdfViewerScreen(
-                                    url: url,
-                                    title: item.receiptFilename ?? 'Receipt',
-                                  ),
-                                ),
-                              );
-                            } else {
-                              downloadAndOpen(url);
-                            }
-                          },
-                        ),
-                      )
-                  ],
-                )
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Color _getStatusColor(String status) {
@@ -598,21 +547,438 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AuroraBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Floating Glass App Bar
+            SliverAppBar(
+              floating: true,
+              snap: true,
+              pinned: true,
+              backgroundColor: isDark
+                  ? Colors.black.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.5),
+              elevation: 0,
+              centerTitle: true,
+              title: Text('Expenses', style: AppTypography.headlineMedium),
+              flexibleSpace: ClipRRect(
+                child: Container(
+                  color: Colors.transparent, // Handled by aurora bg mostly
+                ),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () => _loadExpenses(reset: true),
+                ),
+              ],
+            ),
+
+            // Filter Island with Toggle
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                child: Column(
+                  children: [
+                    // View Mode Toggles
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppLayout.gapPage),
+                      child: Row(
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Personal'),
+                            selected: _viewMode == 'personal',
+                            onSelected: (val) {
+                              if (val) {
+                                setState(() {
+                                  _viewMode = 'personal';
+                                  _items.clear();
+                                });
+                                _loadExpenses(reset: true);
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Checked-In'),
+                            selected: _viewMode == 'checked_in',
+                            onSelected: (val) {
+                              if (val) {
+                                setState(() {
+                                  _viewMode = 'checked_in';
+                                  _checkedInItems.clear();
+                                });
+                                _loadExpenses(reset: true);
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            height: 24,
+                            width: 1,
+                            color: Theme.of(context).dividerColor,
+                          ),
+                          const SizedBox(width: 16),
+                          // Existing filters button
+                          ActionChip(
+                            avatar: const Icon(Icons.filter_list, size: 16),
+                            label: const Text('Filters'),
+                            onPressed: _openFilterDialog,
+                          ),
+                          if (_activeFilters.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            ActionChip(
+                              avatar: const Icon(Icons.close, size: 16),
+                              label: const Text('Clear'),
+                              onPressed: _clearFilters,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    // Active Filters Display
+                    if (_activeFilters.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                            AppLayout.gapPage, 8, AppLayout.gapPage, 0),
+                        child: SizedBox(
+                          height: 30,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _activeFilters.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (context, index) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .primaryColor
+                                      .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Text(
+                                  _activeFilters[index],
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: Theme.of(context).primaryColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Summary Card (if loaded and personal mode)
+            if (_viewMode == 'personal' && _totals != null && _items.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppLayout.gapPage, vertical: 8),
+                  child: GlassContainer(
+                    isNeon: isDark,
+                    padding: const EdgeInsets.all(AppLayout.gapL),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildSummaryItem('Total', _totals!.totalAmount,
+                              AppPalette.electricBlue),
+                          VerticalDivider(
+                              color: Theme.of(context).dividerColor),
+                          _buildSummaryItem('Approved', _totals!.approvedAmount,
+                              Colors.green),
+                          VerticalDivider(
+                              color: Theme.of(context).dividerColor),
+                          _buildSummaryItem(
+                              'Pending', _totals!.pendingAmount, Colors.orange),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Loading State
+            if (_loading &&
+                (_viewMode == 'personal' ? _items : _checkedInItems).isEmpty)
+              const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+
+            // Empty State
+            if (!_loading &&
+                (_viewMode == 'personal' ? _items : _checkedInItems).isEmpty)
+              SliverFillRemaining(
+                child: Center(
+                    child: Text(_viewMode == 'personal'
+                        ? 'No expenses found'
+                        : 'No checked-in expenses found')),
+              ),
+
+            // Expense List
+            if ((_viewMode == 'personal' ? _items : _checkedInItems).isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppLayout.gapPage,
+                  vertical: AppLayout.gapM,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final currentList =
+                          _viewMode == 'personal' ? _items : _checkedInItems;
+                      // Load more logic
+                      if (index == currentList.length) {
+                        if (_page < _lastPage) {
+                          _loadMore();
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        } else {
+                          return const SizedBox(height: 60); // Spacer for FAB
+                        }
+                      }
+
+                      if (_viewMode == 'personal') {
+                        final item = _items[index];
+                        final isApproved =
+                            item.status.toLowerCase() == 'approved';
+
+                        return Padding(
+                          padding:
+                              const EdgeInsets.only(bottom: AppLayout.gapS),
+                          child: DataListTile(
+                            // Use title and status pill, use rows for data
+                            title: _currencyFormat.format(item.amount),
+                            statusPill: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _getStatusColor(item.status)
+                                    .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: _getStatusColor(item.status)),
+                              ),
+                              child: Text(
+                                item.statusLabel,
+                                style: TextStyle(
+                                    color: _getStatusColor(item.status),
+                                    fontSize: 12),
+                              ),
+                            ),
+
+                            // Compact Key-Value Data
+                            compactRows: [
+                              InfoRow(
+                                icon: Icons.calendar_today_outlined,
+                                label: 'Date',
+                                value: item.expenseDate ?? '-',
+                              ),
+                              InfoRow(
+                                icon: Icons.category_outlined,
+                                label: 'Category',
+                                value: item.section.isNotEmpty
+                                    ? item.section
+                                    : 'General',
+                              ),
+                            ],
+
+                            // Expandable Details
+                            expandedRows: [
+                              const Text('Description',
+                                  style: TextStyle(
+                                      color: Colors.grey, fontSize: 12)),
+                              Text(
+                                item.description ?? 'No description',
+                                style: AppTypography.bodySmall,
+                              ),
+                              const SizedBox(height: 8),
+                              if (isApproved &&
+                                  item.approvedAmount != item.amount)
+                                Text(
+                                  'Approved Amount: ${_currencyFormat.format(item.approvedAmount)}',
+                                  style: AppTypography.bodySmall.copyWith(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              if (item.dueAmount > 0)
+                                Text(
+                                  'Due Amount: ${_currencyFormat.format(item.dueAmount)}',
+                                  style: AppTypography.bodySmall.copyWith(
+                                      color: Colors.redAccent,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                            ],
+
+                            // Actions
+                            actions: [
+                              if (item.fileUrl != null)
+                                SizedBox(
+                                  height: 32,
+                                  child: OutlinedButton.icon(
+                                    icon:
+                                        const Icon(Icons.visibility, size: 14),
+                                    label: const Text('Receipt',
+                                        style: TextStyle(fontSize: 12)),
+                                    onPressed: () => _viewReceipt(item.fileUrl!,
+                                        item.receiptFilename ?? 'Receipt'),
+                                  ),
+                                ),
+                            ],
+                          )
+                              .animate(
+                                  delay: (50 * (index % 10))
+                                      .ms) // Modulo to stagger pages nicely
+                              .fadeIn(duration: 300.ms)
+                              .slideY(begin: 0.1, end: 0),
+                        );
+                      } else {
+                        // Checked-In Item
+                        final item = _checkedInItems[index];
+
+                        // Prefer display_name, fallback to personName, fallback to 'Unknown'
+                        final primaryName =
+                            item.displayName ?? item.personName ?? 'Unknown';
+
+                        return Padding(
+                          padding:
+                              const EdgeInsets.only(bottom: AppLayout.gapS),
+                          child: DataListTile(
+                            // Show approved total
+                            title: _currencyFormat.format(item.approvedTotal),
+
+                            // Blue Pill
+                            statusPill: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue),
+                              ),
+                              child: const Text(
+                                'Checked-In',
+                                style:
+                                    TextStyle(color: Colors.blue, fontSize: 12),
+                              ),
+                            ),
+
+                            compactRows: [
+                              InfoRow(
+                                icon: Icons.calendar_today_outlined,
+                                label: 'Date',
+                                value: item.createdAt ?? '-',
+                              ),
+                              InfoRow(
+                                icon: Icons.person_outline,
+                                label: 'Name',
+                                value: primaryName,
+                              ),
+                            ],
+
+                            expandedRows: [
+                              if (item.filename != null)
+                                InfoRow(
+                                  icon: Icons.attach_file,
+                                  label: 'File',
+                                  value: item.filename!,
+                                ),
+                              if (item.approverName != null)
+                                InfoRow(
+                                  icon: Icons.verified_user_outlined,
+                                  label: 'Approver',
+                                  value: item.approverName!,
+                                ),
+                            ],
+
+                            actions: [
+                              if (item.url != null)
+                                SizedBox(
+                                  height: 32,
+                                  child: OutlinedButton.icon(
+                                    icon:
+                                        const Icon(Icons.visibility, size: 14),
+                                    label: const Text('View Document',
+                                        style: TextStyle(fontSize: 12)),
+                                    onPressed: () => _viewReceipt(
+                                        item.url!, item.filename ?? 'Document'),
+                                  ),
+                                ),
+                            ],
+                          ).animate(delay: (50 * (index % 10)).ms).fadeIn(),
+                        );
+                      }
+                    },
+                    childCount: (_viewMode == 'personal'
+                            ? _items.length
+                            : _checkedInItems.length) +
+                        1, // +1 for loader/spacer
+                  ),
+                ),
+              ),
+          ],
+        ),
+        floatingActionButton: ScaleButton(
+          onTap: _openCreateExpenseDialog,
+          child: GlassContainer(
+            isNeon: true,
+            borderRadius: BorderRadius.circular(30),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.add, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('Add Expense',
+                    style:
+                        AppTypography.labelLarge.copyWith(color: Colors.white)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSummaryItem(String label, double amount, Color color) {
     return Column(
       children: [
         Text(
           label,
-          style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[700]),
+          style: AppTypography.bodySmall.copyWith(color: Colors.grey),
         ),
         const SizedBox(height: 4),
         Text(
           _currencyFormat.format(amount),
-          style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.bold, color: color),
+          style: AppTypography.bodyLarge.copyWith(
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
         ),
       ],
     );

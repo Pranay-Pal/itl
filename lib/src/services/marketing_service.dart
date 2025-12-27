@@ -8,6 +8,7 @@ import 'package:itl/src/features/reports/models/report_model.dart';
 import 'package:itl/src/features/invoices/models/invoice_model.dart';
 import 'package:itl/src/features/expenses/models/expense_model.dart';
 import 'package:itl/src/features/reports/models/pending_report_model.dart';
+import 'package:itl/src/features/expenses/models/checked_in_expense_model.dart';
 
 class MarketingService {
   final ApiService _apiService = ApiService();
@@ -52,7 +53,7 @@ class MarketingService {
         debugPrint(
             'Bookings API Response (First 500 chars): ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}');
       }
-      final json = jsonDecode(response.body);
+      final json = await _apiService.parseJson(response.body);
       if (json['data'] != null) {
         return BookingFlatResponse.fromJson(json['data']);
       }
@@ -91,7 +92,7 @@ class MarketingService {
     final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
+      final json = await _apiService.parseJson(response.body);
       if (json['data'] != null) {
         return BookingGroupedResponse.fromJson(json['data']);
       }
@@ -116,7 +117,7 @@ class MarketingService {
     final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
+      final json = await _apiService.parseJson(response.body);
       return MarketingOverview.fromJson(json);
     } else {
       throw Exception(
@@ -159,7 +160,7 @@ class MarketingService {
         debugPrint(
             'Invoices API Response (First 500 chars): ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}');
       }
-      final json = jsonDecode(response.body);
+      final json = await _apiService.parseJson(response.body);
       if (json['data'] != null) {
         return InvoiceResponse.fromJson(json['data']);
       }
@@ -206,7 +207,7 @@ class MarketingService {
     debugPrint('Expenses API Body: ${response.body}');
 
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
+      final json = await _apiService.parseJson(response.body);
       if (json is Map<String, dynamic>) {
         return ExpenseResponse.fromJson(json);
       } else if (json is Map) {
@@ -292,7 +293,7 @@ class MarketingService {
     final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
+      final json = await _apiService.parseJson(response.body);
       if (json['data'] != null) {
         return ReportResponse.fromJson(json['data']);
       }
@@ -330,7 +331,7 @@ class MarketingService {
     final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
+      final json = await _apiService.parseJson(response.body);
       if (json['data'] != null) {
         return BookingGroupedResponse.fromJson(json['data']);
       }
@@ -377,7 +378,7 @@ class MarketingService {
     final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
+      final json = await _apiService.parseJson(response.body);
       if (json['data'] != null) {
         return PendingResponse.fromJson(json['data']);
       }
@@ -390,6 +391,41 @@ class MarketingService {
     } else {
       throw Exception(
           'Failed to load pending reports: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  Future<CheckedInExpenseResponse> getCheckedInExpenses({
+    int page = 1,
+    int perPage = 15,
+    String? search,
+    int? month,
+    int? year,
+    bool mine = true,
+  }) async {
+    final queryParams = {
+      'page': page.toString(),
+      'perPage': perPage.toString(),
+      if (mine) 'mine': '1',
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (month != null) 'month': month.toString(),
+      if (year != null) 'year': year.toString(),
+    };
+
+    final uri =
+        Uri.parse('${ApiService.baseUrl}/superadmin/personal/checked-in')
+            .replace(queryParameters: queryParams);
+
+    debugPrint('Fetching checked-in expenses: $uri');
+
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final json = await _apiService.parseJson(response.body);
+      // The API response structure matches CheckedInExpenseResponse.fromJson
+      return CheckedInExpenseResponse.fromJson(json);
+    } else {
+      throw Exception(
+          'Failed to load checked-in expenses: ${response.statusCode} ${response.body}');
     }
   }
 }

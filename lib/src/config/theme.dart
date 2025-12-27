@@ -1,61 +1,153 @@
 import 'package:flutter/material.dart';
+import 'package:itl/src/config/app_layout.dart';
+import 'package:itl/src/config/app_palette.dart';
+import 'package:itl/src/config/app_theme_extension.dart';
+import 'package:itl/src/config/typography.dart';
 
-// WhatsApp Official/Common Colors
-class AppColors {
-  // Light Theme
-  static const lightPrimary = Color(0xFF075E54); // Teal Green
-  static const lightSecondary = Color(0xFF128C7E); // Light Teal
-  static const lightBackground = Color(0xFFECE5DD); // Beige / Doodle BG color
-  static const lightBubbleSent = Color(0xFFDCF8C6); // Pale Green
-  static const lightBubbleReceived = Color(0xFFFFFFFF); // White
+class AppTheme {
+  const AppTheme._();
 
-  // Dark Theme
-  static const darkPrimary = Color(0xFF1F2C34); // Dark Grey/Teal
-  static const darkSecondary = Color(0xFF005C4B); // Darker Teal
-  static const darkBackground = Color(0xFF0B141A); // Very Dark Blue/Black
-  static const darkBubbleSent = Color(0xFF005C4B); // Dark Teal
-  static const darkBubbleReceived = Color(0xFF1F2C34); // Dark Grey
+  // --- Light Theme ---
+  static ThemeData get light => _baseTheme(
+        brightness: Brightness.light,
+        background: AppPalette.lightBackground,
+        surface: AppPalette.lightSurface,
+        primary: AppPalette.lightPrimary,
+        secondary: AppPalette.lightSecondary,
+        textPrimary: AppPalette.lightTextPrimary,
+        textSecondary: AppPalette.lightTextSecondary,
+        extension: AppThemeExtension.light,
+      );
+
+  // --- Dark Theme ---
+  static ThemeData get dark => _baseTheme(
+        brightness: Brightness.dark,
+        background: AppPalette.darkBackground,
+        surface: AppPalette.darkSurface,
+        primary: AppPalette.darkPrimary,
+        secondary: AppPalette.darkSecondary,
+        textPrimary: AppPalette.darkTextPrimary,
+        textSecondary: AppPalette.darkTextSecondary,
+        extension: AppThemeExtension.dark,
+      );
+
+  static ThemeData _baseTheme({
+    required Brightness brightness,
+    required Color background,
+    required Color surface,
+    required Color primary,
+    required Color secondary,
+    required Color textPrimary,
+    required Color textSecondary,
+    required AppThemeExtension extension,
+  }) {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      scaffoldBackgroundColor: background,
+      primaryColor: primary,
+      colorScheme: ColorScheme(
+        brightness: brightness,
+        primary: primary,
+        onPrimary: Colors.white,
+        secondary: secondary,
+        onSecondary: Colors.white,
+        error: AppPalette.dangerRed,
+        onError: Colors.white,
+        surface: surface,
+        onSurface: textPrimary,
+      ),
+
+      // Text Theme
+      textTheme: TextTheme(
+        displayLarge: AppTypography.displayLarge.copyWith(color: textPrimary),
+        displayMedium: AppTypography.displayMedium.copyWith(color: textPrimary),
+        displaySmall: AppTypography.displaySmall.copyWith(color: textPrimary),
+        headlineLarge: AppTypography.headlineLarge.copyWith(color: textPrimary),
+        headlineMedium:
+            AppTypography.headlineMedium.copyWith(color: textPrimary),
+        headlineSmall: AppTypography.headlineSmall.copyWith(color: textPrimary),
+        bodyLarge: AppTypography.bodyLarge.copyWith(color: textPrimary),
+        bodyMedium: AppTypography.bodyMedium.copyWith(color: textPrimary),
+        bodySmall: AppTypography.bodySmall.copyWith(color: textSecondary),
+        labelLarge: AppTypography.labelLarge.copyWith(
+            color: brightness == Brightness.dark ? Colors.white : Colors.white),
+        labelMedium: AppTypography.labelMedium.copyWith(color: textSecondary),
+        labelSmall: AppTypography.labelSmall.copyWith(color: textSecondary),
+      ),
+
+      // Component Themes
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle:
+            AppTypography.headlineMedium.copyWith(color: textPrimary),
+        iconTheme: IconThemeData(color: textPrimary),
+        actionsIconTheme: IconThemeData(color: primary),
+      ),
+
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(AppLayout.radiusL)),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: extension.surfaceSubtle,
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppLayout.gapL, vertical: AppLayout.gapM),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusM),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusM),
+          borderSide: BorderSide(
+              color: brightness == Brightness.light
+                  ? AppPalette.coolWhite.withValues(alpha: 0.7)
+                  : Colors.white.withValues(alpha: 0.4)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusM),
+          borderSide: BorderSide(color: primary, width: 1.5),
+        ),
+        hintStyle: AppTypography.bodyMedium.copyWith(color: textSecondary),
+        labelStyle: AppTypography.bodyMedium.copyWith(color: textSecondary),
+      ),
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          textStyle:
+              AppTypography.labelLarge, // Ensuring bold tech font for buttons
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppLayout.radiusRound),
+          ),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppLayout.gapXl, vertical: AppLayout.gapM),
+        ),
+      ),
+
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: const CircleBorder(),
+      ),
+
+      iconTheme: IconThemeData(color: textPrimary, size: AppLayout.iconSizeM),
+      dividerTheme: DividerThemeData(
+          color: textSecondary.withValues(alpha: 0.2), thickness: 1),
+
+      // Extensions
+      extensions: [extension],
+    );
+  }
 }
-
-final ThemeData lightTheme = ThemeData(
-  brightness: Brightness.light,
-  primaryColor: AppColors.lightPrimary,
-  scaffoldBackgroundColor: AppColors.lightBackground,
-  appBarTheme: const AppBarTheme(
-    backgroundColor: AppColors.lightPrimary,
-    foregroundColor: Colors.white,
-    elevation: 0,
-  ),
-  floatingActionButtonTheme: const FloatingActionButtonThemeData(
-    backgroundColor: Color(0xFF25D366), // WhatsApp Green FAB
-    foregroundColor: Colors.white,
-  ),
-  // Default font for the app
-  // fontFamily: GoogleFonts.inter().fontFamily,
-  colorScheme: ColorScheme.fromSwatch().copyWith(
-    secondary: AppColors.lightSecondary,
-    brightness: Brightness.light,
-  ),
-);
-
-final ThemeData darkTheme = ThemeData(
-  brightness: Brightness.dark,
-  primaryColor: AppColors.darkPrimary,
-  scaffoldBackgroundColor: AppColors.darkBackground,
-  appBarTheme: const AppBarTheme(
-    backgroundColor: AppColors.darkPrimary,
-    foregroundColor: Colors.grey, // Headers often greyish in dark mode
-    elevation: 0,
-  ),
-  floatingActionButtonTheme: const FloatingActionButtonThemeData(
-    backgroundColor:
-        Color(0xFF00A884), // Slightly different green for dark mode
-    foregroundColor: Colors.white,
-  ),
-  // fontFamily: GoogleFonts.inter().fontFamily, // Removed to avoid runtime fetch errors
-  colorScheme: ColorScheme.fromSwatch(brightness: Brightness.dark).copyWith(
-    secondary: AppColors.darkSecondary,
-    surface: AppColors.darkBackground,
-    brightness: Brightness.dark,
-  ),
-);

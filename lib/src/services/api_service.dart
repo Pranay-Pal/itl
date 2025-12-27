@@ -24,6 +24,12 @@ class ApiService {
     await _loadToken();
   }
 
+  /// Helper to offload JSON decoding to a background isolate.
+  /// Useful for large API responses to avoid jank.
+  Future<dynamic> parseJson(String responseBody) {
+    return compute(_parseAndDecode, responseBody);
+  }
+
   Future<void> _loadToken() async {
     if (_token == null) {
       final prefs = await SharedPreferences.getInstance();
@@ -798,6 +804,7 @@ class ApiService {
 
   /// Helper to build marketing-person scoped URL using the current user's marketing user_code.
   /// Only valid for non-admin users.
+
   String _marketingPersonPath(String path) {
     if (_userType != 'user' || _userCode == null) {
       throw StateError('Marketing-person endpoints are only for user logins');
@@ -1095,4 +1102,9 @@ class ApiService {
     }
     return null;
   }
+}
+
+/// Standalone function for [compute].
+dynamic _parseAndDecode(String responseBody) {
+  return jsonDecode(responseBody);
 }

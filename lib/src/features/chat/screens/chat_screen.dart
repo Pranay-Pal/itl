@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
+import 'package:itl/src/config/app_palette.dart';
 import 'package:file_picker/file_picker.dart';
 
 import 'package:icons_plus/icons_plus.dart';
@@ -17,7 +19,6 @@ import 'package:itl/src/services/pusher_service.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 import 'package:itl/src/features/chat/widgets/voice_message_player_widget.dart'
     as voice_widget;
-import 'package:itl/src/config/theme.dart';
 
 const String baseUrl =
     "https://mediumslateblue-hummingbird-258203.hostingersite.com/api";
@@ -851,8 +852,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 isDark ? 0.3 : 1.0, // Should reduce opacity if it's too busy
           ),
           color: isDark
-              ? AppColors.darkBackground
-              : AppColors.lightBackground, // Fallback
+              ? AppPalette.darkBackground
+              : AppPalette.lightBackground, // Fallback
         ),
         child: Column(
           children: [
@@ -904,10 +905,8 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sentColor =
-        isDark ? AppColors.darkBubbleSent : AppColors.lightBubbleSent;
-    final whtColor =
-        isDark ? AppColors.darkBubbleReceived : AppColors.lightBubbleReceived;
+    final sentColor = isDark ? AppPalette.darkPrimary : AppPalette.lightPrimary;
+    final whtColor = isDark ? AppPalette.darkSurface : AppPalette.lightSurface;
     // Dark mode -> White text, Light mode -> Black text
     final textColor = isDark ? Colors.white : Colors.black;
 

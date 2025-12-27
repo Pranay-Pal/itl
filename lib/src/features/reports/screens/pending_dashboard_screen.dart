@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:itl/src/services/marketing_service.dart';
-import 'package:itl/src/config/constants.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
+import 'package:itl/src/common/widgets/design_system/aurora_background.dart';
+import 'package:itl/src/common/widgets/design_system/compact_data_tile.dart';
+import 'package:itl/src/common/widgets/design_system/filter_island.dart';
+import 'package:itl/src/config/app_layout.dart';
+import 'package:itl/src/config/app_palette.dart';
+import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/reports/models/pending_report_model.dart';
-import 'package:itl/src/shared/screens/pdf_viewer_screen.dart';
+import 'package:itl/src/services/marketing_service.dart';
+import 'package:itl/src/common/utils/file_viewer_service.dart';
 
 class PendingDashboardScreen extends StatefulWidget {
   final String userCode;
@@ -19,14 +26,12 @@ class _PendingDashboardScreenState extends State<PendingDashboardScreen>
   late TabController _tabController;
 
   // Filter State
-  // String _mode = 'job'; // REMOVED: Mode now determined by tab index
   bool _overdue = false;
-  String _search = '';
+  String _searchQuery = '';
   int? _selectedMonth;
   int? _selectedYear;
   int? _selectedDepartment;
   final TextEditingController _searchController = TextEditingController();
-  final int _currentYear = DateTime.now().year;
 
   // Data State
   List<PendingItem> _jobItems = [];
@@ -38,14 +43,20 @@ class _PendingDashboardScreenState extends State<PendingDashboardScreen>
 
   final ScrollController _scrollController = ScrollController();
 
-  // Departments (Hardcoded for now based on image)
-  final List<Map<String, dynamic>> _departments = [
-    {'id': null, 'label': 'All'},
-    {'id': 1, 'label': 'BIS'},
-    {'id': 2, 'label': 'GENERAL'},
-    {'id': 3, 'label': 'NBCC'},
-    {'id': 4, 'label': 'UTTARAKHAND'},
-  ];
+  List<String> get _activeFilters {
+    final filters = <String>[];
+    if (_searchQuery.isNotEmpty) filters.add('Search: "$_searchQuery"');
+    if (_overdue) filters.add('OVERDUE ONLY');
+    if (_selectedDepartment != null) {
+      filters.add('Dept: $_selectedDepartment');
+    }
+    if (_selectedMonth != null) {
+      filters.add(
+          'Month: ${DateFormat.MMM().format(DateTime(0, _selectedMonth!))}');
+    }
+    if (_selectedYear != null) filters.add('Year: $_selectedYear');
+    return filters;
+  }
 
   @override
   void initState() {
@@ -64,6 +75,7 @@ class _PendingDashboardScreenState extends State<PendingDashboardScreen>
 
   @override
   void dispose() {
+    _tabController.dispose();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -98,7 +110,7 @@ class _PendingDashboardScreenState extends State<PendingDashboardScreen>
         userCode: widget.userCode,
         mode: currentMode,
         page: loadMore ? _currentPage + 1 : 1,
-        search: _search,
+        search: _searchQuery,
         month: _selectedMonth,
         year: _selectedYear,
         overdue: _overdue,
@@ -141,425 +153,450 @@ class _PendingDashboardScreenState extends State<PendingDashboardScreen>
     }
   }
 
-  void _toggleOverdue() {
+  void _clearFilters() {
     setState(() {
-      _overdue = !_overdue;
+      _searchQuery = '';
+      _searchController.clear();
+      _selectedMonth = null;
+      _selectedYear = null;
+      _selectedDepartment = null;
+      _overdue = false;
     });
     _fetchData();
+  }
+
+  void _openFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return _PendingFilterModal(
+          initialMonth: _selectedMonth,
+          initialYear: _selectedYear,
+          initialSearch: _searchQuery,
+          initialDepartment: _selectedDepartment,
+          initialOverdue: _overdue,
+          onApply: (month, year, search, dept, overdue) {
+            setState(() {
+              _selectedMonth = month;
+              _selectedYear = year;
+              _searchQuery = search;
+              _searchController.text = search;
+              _selectedDepartment = dept;
+              _overdue = overdue;
+            });
+            Navigator.pop(context);
+            _fetchData();
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        flexibleSpace:
-            Container(decoration: BoxDecoration(gradient: kBlueGradient)),
-        title: const Text('Pending Reports',
-            style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: 'By Job Order'),
-            Tab(text: 'By Reference'),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () {
-              _fetchData();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildFilterBar(isDark),
-          _buildDepartmentChips(isDark),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildList(isDark, 'job'),
-                _buildList(isDark, 'reference'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterBar(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      color: isDark ? Colors.grey[900] : Colors.grey[100],
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
-                  ),
-                  onSubmitted: (val) {
-                    _search = val;
-                    _fetchData();
-                  },
-                ),
+    return AuroraBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverAppBar(
+              title:
+                  Text('Pending Reports', style: AppTypography.headlineMedium),
+              centerTitle: true,
+              floating: true,
+              snap: true,
+              pinned: true,
+              elevation: 0,
+              backgroundColor: isDark
+                  ? Colors.black.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.5),
+              flexibleSpace: ClipRRect(
+                child: Container(color: Colors.transparent),
               ),
-              const SizedBox(width: 8),
-              // Overdue Toggle
-              IconButton(
-                icon: Icon(Icons.warning_amber_rounded,
-                    color: _overdue ? Colors.orange : Colors.grey),
-                tooltip: 'Out of Expected Date',
-                onPressed: _toggleOverdue,
-              ),
-              const SizedBox(width: 8),
-              _buildDropdown('Month', _selectedMonth,
-                  List.generate(12, (i) => i + 1), (v) => _selectedMonth = v),
-              const SizedBox(width: 8),
-              _buildDropdown(
-                  'Year',
-                  _selectedYear,
-                  List.generate(5, (i) => _currentYear - i),
-                  (v) => _selectedYear = v),
-              IconButton(
-                  onPressed: () => _fetchData(),
-                  icon: const Icon(Icons.filter_list, color: Colors.blue)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDropdown<T>(
-      String hint, T? value, List<T> items, Function(T?) onChanged) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey),
-          borderRadius: BorderRadius.circular(4)),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          hint: Text(hint),
-          items: items
-              .map((e) => DropdownMenuItem(value: e, child: Text(e.toString())))
-              .toList(),
-          onChanged: (val) {
-            setState(() => onChanged(val));
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDepartmentChips(bool isDark) {
-    return Container(
-      width: double.infinity,
-      color: isDark ? Colors.grey[850] : Colors.grey[50],
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: _departments.map((dept) {
-            final isSelected = _selectedDepartment == dept['id'];
-            return Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: FilterChip(
-                label: Text(dept['label']),
-                selected: isSelected,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedDepartment = selected ? dept['id'] : null;
-                  });
-                  _fetchData();
-                },
-                selectedColor: Colors.amber,
-                checkmarkColor: Colors.black,
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildList(bool isDark, String mode) {
-    // Only check loading for the current mode relative to the tab
-    if (_isLoading && _currentPage == 1) {
-      if ((mode == 'job' && _tabController.index == 0) ||
-          (mode == 'reference' && _tabController.index == 1)) {
-        return const Center(child: CircularProgressIndicator());
-      }
-    }
-
-    final isEmpty = mode == 'job' ? _jobItems.isEmpty : _referenceItems.isEmpty;
-
-    if (isEmpty) {
-      return const Center(child: Text("No Pending Reports Found"));
-    }
-
-    return ListView.separated(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(12),
-      itemCount: (mode == 'job' ? _jobItems.length : _referenceItems.length) +
-          (_isLoadingMore ? 1 : 0),
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        if (index ==
-            (mode == 'job' ? _jobItems.length : _referenceItems.length)) {
-          return const Center(
-              child: Padding(
-                  padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator()));
-        }
-
-        if (mode == 'job') {
-          return _buildJobCard(_jobItems[index], isDark);
-        } else {
-          return _buildReferenceCard(_referenceItems[index], isDark);
-        }
-      },
-    );
-  }
-
-  Widget _buildJobCard(PendingItem item, bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.05),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-        border: Border.all(
-          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  item.jobOrderNo ?? '-',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ),
-              _buildStatusBadge(item.status),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(item.clientName ?? '-',
-              style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-          const Divider(height: 24),
-          _buildRow('Description', item.sampleDescription),
-          _buildRow('Quality', item.sampleQuality),
-          _buildRow('Particulars', item.particulars),
-          if (item.uploadLetterUrl != null)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                icon: const Icon(Icons.picture_as_pdf, size: 18),
-                label: const Text('View Letter'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: () => _viewPdf(item.uploadLetterUrl),
-              ),
-            )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReferenceCard(PendingBooking item, bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.05),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-        border: Border.all(
-          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.clientName ?? '-',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 4),
-                    Text(item.referenceNo ?? '-',
-                        style:
-                            TextStyle(color: Colors.grey[600], fontSize: 13)),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: TabBar(
+                  controller: _tabController,
+                  labelStyle: AppTypography.labelLarge,
+                  unselectedLabelStyle: AppTypography.bodyMedium,
+                  indicatorColor: AppPalette.electricBlue,
+                  labelColor: AppPalette.electricBlue,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: const [
+                    Tab(text: 'By Job Order'),
+                    Tab(text: 'By Reference'),
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () {
+                    _fetchData();
+                  },
                 ),
-                child: Text('${item.pendingItemsCount} Item(s)',
-                    style: const TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+              ],
+            ),
+          ],
+          body: TabBarView(
+            controller: _tabController,
             children: [
-              if (item.uploadLetterUrl != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.picture_as_pdf, size: 18),
-                    label: const Text('Letter'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    onPressed: () => _viewPdf(item.uploadLetterUrl),
-                  ),
-                ),
-              OutlinedButton(
-                onPressed: () => _showDetailsDialog(item),
-                child: const Text('View Details'),
-              ),
+              _buildJobList(),
+              _buildReferenceList(),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  void _showDetailsDialog(PendingBooking booking) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Pending Items'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: booking.pendingItems.length,
-              separatorBuilder: (_, __) => const Divider(),
-              itemBuilder: (context, index) {
-                final item = booking.pendingItems[index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item.jobOrderNo ?? '-'),
-                  subtitle:
-                      Text('${item.sampleDescription}\n${item.sampleQuality}'),
-                  trailing: _buildStatusBadge(item.status),
-                );
-              },
+  Widget _buildJobList() {
+    return CustomScrollView(
+        key: const PageStorageKey('job_list'),
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: FilterIsland(
+                onFilterTap: _openFilterModal,
+                onClearTap: _clearFilters,
+                activeFilters: _activeFilters,
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
+          if (_isLoading && _jobItems.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator())),
+          if (!_isLoading && _jobItems.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: Text('No pending jobs found'))),
+          SliverPadding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+              sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                if (index == _jobItems.length) {
+                  return _isLoadingMore
+                      ? const Center(child: CircularProgressIndicator())
+                      : const SizedBox(height: 60);
+                }
+
+                final item = _jobItems[index];
+                // No expected date in model, so simplified pill
+
+                return Padding(
+                        padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                        child: DataListTile(
+                          title: item.jobOrderNo ?? 'N/A',
+                          subtitle: item.clientName ?? 'Unknown Client',
+                          statusPill: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text('PENDING',
+                                style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                          compactRows: [
+                            InfoRow(
+                                icon: Icons.science,
+                                label: 'Sample',
+                                value: item.sampleDescription ?? '-'),
+                          ],
+                          expandedRows: [
+                            InfoRow(
+                                icon: Icons.description,
+                                label: 'Particulars',
+                                value: item.particulars ?? '-'),
+                            if (item.status != null)
+                              InfoRow(
+                                  icon: Icons.info_outline,
+                                  label: 'Status',
+                                  value: item.status!),
+                          ],
+                        ))
+                    .animate()
+                    .fadeIn(duration: 50.ms)
+                    .slideY(begin: 0.1, end: 0);
+              }, childCount: _jobItems.length + 1)))
+        ]);
+  }
+
+  Widget _buildReferenceList() {
+    return CustomScrollView(
+        key: const PageStorageKey('ref_list'),
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: FilterIsland(
+                onFilterTap: _openFilterModal,
+                onClearTap: _clearFilters,
+                activeFilters: _activeFilters,
+              ),
+            ),
+          ),
+          if (_isLoading && _referenceItems.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator())),
+          if (!_isLoading && _referenceItems.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: Text('No pending references found'))),
+          SliverPadding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+              sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                if (index == _referenceItems.length) {
+                  return _isLoadingMore
+                      ? const Center(child: CircularProgressIndicator())
+                      : const SizedBox(height: 60);
+                }
+
+                final item = _referenceItems[index];
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                  child: DataListTile(
+                    title: item.clientName ?? 'Unknown Client',
+                    subtitle: item.referenceNo ?? 'No Ref',
+                    statusPill: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppPalette.electricBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text('${item.pendingItemsCount} Items',
+                          style: TextStyle(
+                              color: AppPalette.electricBlue,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    expandedRows: [
+                      const Divider(),
+                      ...item.pendingItems.map((subItem) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.circle,
+                                    size: 6, color: Colors.grey[400]),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(subItem.jobOrderNo ?? 'N/A',
+                                          style: AppTypography.labelSmall),
+                                      Text(subItem.sampleDescription ?? '-',
+                                          style: AppTypography.bodySmall
+                                              .copyWith(color: Colors.grey))
+                                    ],
+                                  ),
+                                )
+                              ])))
+                    ],
+                    actions: [
+                      if (item.uploadLetterUrl != null)
+                        TextButton.icon(
+                            icon: const Icon(Icons.picture_as_pdf, size: 14),
+                            label: const Text('Letter'),
+                            onPressed: () => FileViewerService.viewFile(
+                                context, item.uploadLetterUrl!)),
+                    ],
+                  ),
+                ).animate().fadeIn(duration: 50.ms).slideY(begin: 0.1, end: 0);
+              }, childCount: _referenceItems.length + 1)))
+        ]);
+  }
+}
+
+class _PendingFilterModal extends StatefulWidget {
+  final int? initialMonth;
+  final int? initialYear;
+  final String initialSearch;
+  final int? initialDepartment;
+  final bool initialOverdue;
+  final Function(int? m, int? y, String s, int? d, bool o) onApply;
+
+  const _PendingFilterModal({
+    this.initialMonth,
+    this.initialYear,
+    required this.initialSearch,
+    this.initialDepartment,
+    required this.initialOverdue,
+    required this.onApply,
+  });
+
+  @override
+  State<_PendingFilterModal> createState() => _PendingFilterModalState();
+}
+
+class _PendingFilterModalState extends State<_PendingFilterModal> {
+  int? _month;
+  int? _year;
+  int? _dept;
+  late bool _overdue;
+  late TextEditingController _searchCtrl;
+
+  final List<Map<String, dynamic>> _departments = [
+    {'id': null, 'label': 'All'},
+    {'id': 1, 'label': 'BIS'},
+    {'id': 2, 'label': 'GENERAL'},
+    {'id': 3, 'label': 'NBCC'},
+    {'id': 4, 'label': 'UTTARAKHAND'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _month = widget.initialMonth;
+    _year = widget.initialYear;
+    _dept = widget.initialDepartment;
+    _overdue = widget.initialOverdue;
+    _searchCtrl = TextEditingController(text: widget.initialSearch);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          left: 20,
+          right: 20,
+          top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Filter Pending', style: AppTypography.headlineSmall),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                labelText: 'Search',
+                prefixIcon: const Icon(Icons.search),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Overdue Toggle
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Overdue Only'),
+              value: _overdue,
+              activeColor: Colors.red,
+              onChanged: (v) => setState(() => _overdue = v),
+            ),
+
+            const SizedBox(height: 8),
+            const Text('Department',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _departments
+                    .map((d) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: Text(d['label']),
+                            selected: _dept == d['id'],
+                            onSelected: (v) =>
+                                setState(() => _dept = v ? d['id'] : null),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int?>(
+                    initialValue: _year,
+                    decoration: InputDecoration(
+                      labelText: 'Year',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All')),
+                      ...List.generate(5, (i) => DateTime.now().year - i).map(
+                          (y) => DropdownMenuItem(value: y, child: Text('$y')))
+                    ],
+                    onChanged: (v) => _year = v,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<int?>(
+                    initialValue: _month,
+                    decoration: InputDecoration(
+                      labelText: 'Month',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All')),
+                      ...List.generate(12, (i) => i + 1).map((m) =>
+                          DropdownMenuItem(
+                              value: m,
+                              child: Text(
+                                  DateFormat.MMM().format(DateTime(0, m)))))
+                    ],
+                    onChanged: (v) => _month = v,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: AppPalette.electricBlue,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  widget.onApply(
+                      _month, _year, _searchCtrl.text, _dept, _overdue);
+                },
+                child: const Text('Apply Filters',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
             )
           ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStatusBadge(String? status) {
-    if (status == null) return const SizedBox.shrink();
-    Color color = Colors.grey;
-    if (status.toLowerCase().contains('pending')) color = Colors.orange;
-    if (status.toLowerCase().contains('received')) color = Colors.blue;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color),
-      ),
-      child: Text(status,
-          style: TextStyle(
-              color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _buildRow(String label, String? value) {
-    if (value == null || value.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-              width: 80,
-              child: Text(label,
-                  style: const TextStyle(color: Colors.grey, fontSize: 11))),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
-        ],
-      ),
-    );
-  }
-
-  void _viewPdf(String? path) {
-    if (path == null) return;
-    String url = path;
-    if (!path.startsWith('http')) {
-      url =
-          "https://mediumslateblue-hummingbird-258203.hostingersite.com${path.startsWith('/') ? '' : '/'}$path";
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) =>
-            PdfViewerScreen(url: url, title: 'Pending Report View'),
-      ),
-    );
+        ));
   }
 }

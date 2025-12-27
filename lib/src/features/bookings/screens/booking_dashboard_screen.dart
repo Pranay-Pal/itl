@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
+import 'package:itl/src/common/widgets/design_system/aurora_background.dart';
+import 'package:itl/src/common/widgets/design_system/compact_data_tile.dart';
+import 'package:itl/src/common/widgets/design_system/filter_island.dart';
+import 'package:itl/src/config/app_layout.dart';
+import 'package:itl/src/config/app_palette.dart';
+import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/bookings/models/booking_model.dart';
-
 import 'package:itl/src/services/marketing_service.dart';
-import 'package:itl/src/config/constants.dart';
-
-import 'package:itl/src/shared/screens/pdf_viewer_screen.dart';
+import 'package:itl/src/common/utils/file_viewer_service.dart';
 
 class BookingDashboardScreen extends StatefulWidget {
-  final String userCode; // e.g., MKT001
+  final String userCode;
 
   const BookingDashboardScreen({super.key, required this.userCode});
 
@@ -24,6 +28,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
   // Filters
   int? _selectedMonth;
   int? _selectedYear;
+  String _searchTerm = '';
   final TextEditingController _searchController = TextEditingController();
   final int _currentYear = DateTime.now().year;
 
@@ -41,27 +46,15 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
   final ScrollController _bookingScrollController = ScrollController();
   final ScrollController _letterScrollController = ScrollController();
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(_handleTabChange);
-
-    // Scroll listeners for pagination
-    _bookingScrollController.addListener(_onBookingScroll);
-    _letterScrollController.addListener(_onLetterScroll);
-
-    // Initial fetch
-    _fetchData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _bookingScrollController.dispose();
-    _letterScrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
+  List<String> get _activeFilters {
+    final filters = <String>[];
+    if (_searchTerm.isNotEmpty) filters.add('Search: $_searchTerm');
+    if (_selectedMonth != null) {
+      filters.add(
+          'Month: ${DateFormat.MMM().format(DateTime(0, _selectedMonth!))}');
+    }
+    if (_selectedYear != null) filters.add('Year: $_selectedYear');
+    return filters;
   }
 
   void _onBookingScroll() {
@@ -76,6 +69,28 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
         _letterScrollController.position.maxScrollExtent - 200) {
       _loadMoreData();
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_handleTabChange);
+
+    _bookingScrollController.addListener(_onBookingScroll);
+    _letterScrollController.addListener(_onLetterScroll);
+
+    // Initial fetch
+    _fetchData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _bookingScrollController.dispose();
+    _letterScrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _handleTabChange() {
@@ -103,7 +118,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
           userCode: widget.userCode,
           month: _selectedMonth,
           year: _selectedYear,
-          search: _searchController.text,
+          search: _searchTerm,
           page: pageToFetch,
         );
 
@@ -127,7 +142,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
           userCode: widget.userCode,
           month: _selectedMonth,
           year: _selectedYear,
-          search: _searchController.text,
+          search: _searchTerm,
           page: pageToFetch,
         );
 
@@ -176,663 +191,401 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Scaffold(
-      appBar: AppBar(
-        flexibleSpace: Container(
-          decoration: BoxDecoration(gradient: kBlueGradient),
-        ),
-        title: const Text('Bookings', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: 'Show Booking'),
-            Tab(text: 'By Letter'),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () {
-              setState(() {
-                _bookings = [];
-                _letters = [];
-              });
-              _fetchData();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildFilterBar(isDark),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildShowBookingTab(isDark),
-                _buildByLetterTab(isDark),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  void _clearFilters() {
+    setState(() {
+      _searchTerm = '';
+      _searchController.clear();
+      _selectedMonth = null;
+      _selectedYear = null;
+    });
+    _fetchData();
   }
 
-  Widget _buildFilterBar(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      color: isDark ? Colors.grey[900] : Colors.grey[100],
-      child: Column(
-        children: [
-          Row(
+  void _openFilterDialog() {
+    final tempSearch = TextEditingController(text: _searchTerm);
+    int? tempMonth = _selectedMonth;
+    int? tempYear = _selectedYear;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Theme.of(ctx).cardColor,
+          title: const Text('Filter Bookings'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+              TextField(
+                controller: tempSearch,
+                decoration: InputDecoration(
+                  labelText: 'Search',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  onSubmitted: (_) => _fetchData(),
                 ),
               ),
-              const SizedBox(width: 8),
-              _buildDropdown(
-                  'Month',
-                  _selectedMonth,
-                  List.generate(12, (index) => index + 1),
-                  (val) => setState(() => _selectedMonth = val)),
-              const SizedBox(width: 8),
-              _buildDropdown(
-                  'Year',
-                  _selectedYear,
-                  List.generate(5, (index) => _currentYear - index),
-                  (val) => setState(() => _selectedYear = val)),
-              IconButton(
-                  onPressed: _fetchData,
-                  icon: Icon(Icons.filter_list, color: Colors.blue)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDropdown<T>(
-      String hint, T? value, List<T> items, Function(T?) onChanged) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey),
-          borderRadius: BorderRadius.circular(4)),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          hint: Text(hint),
-          items: items
-              .map((e) => DropdownMenuItem(value: e, child: Text(e.toString())))
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-
-  // --- Tab 1: Show Booking (Flat List of Items) ---
-  // --- Tab 1: Show Booking (Styled List) ---
-  Widget _buildShowBookingTab(bool isDark) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    if (_bookings.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('No bookings found', style: TextStyle(color: Colors.grey)),
-          ],
-        ),
-      );
-    }
-
-    return _buildBookingItemsList(isDark, _bookingScrollController);
-  }
-
-  Widget _buildBookingItemsList(bool isDark, ScrollController controller) {
-    return ListView.separated(
-      controller: controller,
-      padding: const EdgeInsets.all(12),
-      itemCount: _bookings.length + (_isLoadingMore ? 1 : 0),
-      separatorBuilder: (ctx, i) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        if (index == _bookings.length) {
-          return const Center(
-              child: Padding(
-            padding: EdgeInsets.all(8.0),
-            child: CircularProgressIndicator(),
-          ));
-        }
-        final item = _bookings[index];
-
-        return GestureDetector(
-          onTap: () => _showBookingFullDetails(item),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Color.fromRGBO(0, 0, 0, 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              border: Border.all(
-                color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.clientName ?? 'Unknown Client',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
+                  Expanded(
+                    child: DropdownButtonFormField<int?>(
+                      initialValue: tempMonth,
+                      decoration: InputDecoration(
+                        labelText: 'Month',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      _buildStatusPill(
-                          item.status ?? 'Pending', item.statusClass),
-                    ],
-                  ),
-                  if (item.amount != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹ ${item.amount!.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.greenAccent : Colors.green[700],
-                      ),
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('All')),
+                        ...List.generate(12, (i) => i + 1).map((m) =>
+                            DropdownMenuItem(
+                                value: m,
+                                child: Text(
+                                    DateFormat.MMM().format(DateTime(0, m)))))
+                      ],
+                      onChanged: (v) => tempMonth = v,
                     ),
-                  ],
-                  const SizedBox(height: 12),
-
-                  // Job Order Row with Date on right
-                  Row(
-                    children: [
-                      const Icon(Icons.work, size: 16, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      const Text('Job: ',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w500, color: Colors.grey)),
-                      Text(item.jobOrderNo ?? '-',
-                          style: const TextStyle(fontWeight: FontWeight.w500)),
-                      const Spacer(),
-                      const Icon(Icons.calendar_today,
-                          size: 14, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        item.jobOrderDate ?? item.receivedAt ?? '-',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                      ),
-                    ],
                   ),
-                  const SizedBox(height: 8),
-
-                  _buildInfoRow(Icons.receipt, 'Ref:', item.referenceNo),
-                  const SizedBox(height: 8),
-
-                  // Sample Row
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.description, size: 16, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Text('Sample: ',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w500, color: Colors.grey)),
-                      Expanded(
-                          child: Text(item.particulars ?? '-',
-                              maxLines: 2, overflow: TextOverflow.ellipsis)),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Tap for details',
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<int?>(
+                      initialValue: tempYear,
+                      decoration: InputDecoration(
+                        labelText: 'Year',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      if (item.letterUrl != null)
-                        TextButton.icon(
-                          icon: const Icon(Icons.picture_as_pdf, size: 18),
-                          label: const Text('View Letter'),
-                          style:
-                              TextButton.styleFrom(foregroundColor: Colors.red),
-                          onPressed: () => _viewLetter(item.letterUrl),
-                        ),
-                    ],
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('All')),
+                        ...List.generate(5, (i) => _currentYear - i).map((y) =>
+                            DropdownMenuItem(
+                                value: y, child: Text(y.toString())))
+                      ],
+                      onChanged: (v) => tempYear = v,
+                    ),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _searchTerm = tempSearch.text;
+                  _searchController.text = tempSearch.text;
+                  _selectedMonth = tempMonth;
+                  _selectedYear = tempYear;
+                });
+                Navigator.pop(ctx);
+                _fetchData();
+              },
+              child: const Text('Apply'),
+            ),
+          ],
         );
       },
     );
   }
 
-  void _showBookingFullDetails(BookingItemFlat item) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Booking Details'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailItem('Client', item.clientName),
-              const Divider(),
-              _buildDetailItem('Job Order No', item.jobOrderNo),
-              _buildDetailItem(
-                  'Job Order Date', item.jobOrderDate ?? item.receivedAt),
-              _buildDetailItem('Reference No', item.referenceNo),
-              const Divider(),
-              _buildDetailItem('Sample Quality', item.sampleQuality),
-              _buildDetailItem('Particulars', item.particulars),
-              const Divider(),
-              _buildDetailItem(
-                  'Amount', item.amount != null ? '₹ ${item.amount}' : '-'),
-              _buildDetailItem('Lab Expected Date', item.labExpectedDate),
-              const Divider(),
-              _buildDetailItem('Status', item.status),
-              _buildDetailItem('Status Detail', item.statusDetail),
-            ],
-          ),
-        ),
-        actions: [
-          if (item.letterUrl != null)
-            TextButton.icon(
-              icon: const Icon(Icons.picture_as_pdf, size: 18),
-              label: const Text('View Letter'),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => _viewLetter(item.letterUrl),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailItem(String label, String? value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
-                  fontSize: 12)),
-          const SizedBox(height: 2),
-          Text(value ?? '-', style: const TextStyle(fontSize: 14)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String? value) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Colors.grey),
-        const SizedBox(width: 8),
-        Text(
-          '$label ',
-          style:
-              const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey),
-        ),
-        Expanded(
-          child: Text(
-            value ?? '-',
-            style: const TextStyle(fontWeight: FontWeight.w500),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- Tab 2: Booking By Letter (Grouped by Parent) ---
-  // --- Tab 2: Booking By Letter (Grouped Cards) ---
-  Widget _buildByLetterTab(bool isDark) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    if (_letters.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.folder_open, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('No letters found', style: TextStyle(color: Colors.grey)),
-          ],
-        ),
-      );
+  Color _getStatusColor(String status) {
+    if (status.toLowerCase().contains('pending')) {
+      return Colors.orange;
     }
-
-    return ListView.separated(
-      controller: _letterScrollController,
-      padding: const EdgeInsets.all(12),
-      itemCount: _letters.length + (_isLoadingMore ? 1 : 0),
-      separatorBuilder: (ctx, i) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        if (index == _letters.length) {
-          return const Center(
-              child: Padding(
-            padding: EdgeInsets.all(8.0),
-            child: CircularProgressIndicator(),
-          ));
-        }
-        try {
-          final parent = _letters[index];
-          return Container(
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Color.fromRGBO(0, 0, 0, 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              border: Border.all(
-                color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Safe access
-                  Text(
-                    parent.clientName ?? 'Unknown Client',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildInfoRow(Icons.receipt_long, 'Ref:', parent.referenceNo),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8.0, // Gap between adjacent chips
-                    runSpacing: 8.0, // Gap between lines
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (parent.uploadLetterUrl != null)
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.picture_as_pdf,
-                              size: 16, color: Colors.white),
-                          label: const Text('Letter'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                          ),
-                          onPressed: () => _viewLetter(parent.uploadLetterUrl),
-                        ),
-                      if (parent.reportFiles.isNotEmpty)
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.description,
-                              size: 16, color: Colors.white),
-                          label: Text('Reports (${parent.reportFiles.length})'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                          ),
-                          onPressed: () => _showReportsList(parent.reportFiles),
-                        ),
-                      if (parent.invoiceUrl != null)
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.receipt,
-                              size: 16, color: Colors.white),
-                          label: const Text('Invoice'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blueAccent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                          ),
-                          onPressed: () => _viewLetter(parent.invoiceUrl),
-                        ),
-                      // Only show button if items exist, OR show 'No Items' text to be clear
-                      if (parent.items.isNotEmpty)
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.list, size: 16),
-                          label: Text('${parent.items.length} Items'),
-                          onPressed: () => _showLetterDetails(parent),
-                        )
-                      else
-                        const Padding(
-                          padding: EdgeInsets.only(left: 8.0),
-                          child: Text(
-                            'No Items',
-                            style: TextStyle(
-                                color: Colors.grey,
-                                fontStyle: FontStyle.italic,
-                                fontSize: 12),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        } catch (e, stack) {
-          debugPrint('Error rendering item: $e\n$stack');
-          return Center(
-              child: Text('Error rendering item: $e',
-                  style: const TextStyle(color: Colors.red)));
-        }
-      },
-    );
-  }
-
-  Widget _buildStatusPill(String status, [String? statusClass]) {
-    Color color = Colors.orange;
-    String lowerStatus = status.toLowerCase();
-    String lowerClass = (statusClass ?? '').toLowerCase();
-
-    if (lowerClass == 'success' ||
-        lowerStatus.contains('receive') ||
-        lowerStatus.contains('issue')) {
-      color = Colors.green;
-    } else if (lowerClass == 'info') {
-      color = Colors.blue;
-    } else if (lowerClass == 'pending') {
-      color = Colors.orange;
+    if (status.toLowerCase().contains('received')) {
+      return Colors.blue;
     }
-
-    if (lowerStatus.contains('cancel')) {
-      color = Colors.red;
+    if (status.toLowerCase().contains('completed') ||
+        status.toLowerCase().contains('report')) {
+      return AppPalette.successGreen;
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Text(status, style: TextStyle(color: color, fontSize: 12)),
-    );
+    return Colors.grey;
   }
-
-  void _viewLetter(String? path) async {
-    if (path == null) return;
-
-    // Construct URL logic
-    String url = path;
-    if (!path.startsWith('http')) {
-      url =
-          "https://mediumslateblue-hummingbird-258203.hostingersite.com/uploads/bookings/$path";
-    }
-
-    // Navigate to in-app PDF viewer
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) =>
-            PdfViewerScreen(url: url, title: 'Booking Letter'),
-      ),
-    );
-  }
-
-  void _showReportsList(List<ReportFile> files) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Booking Reports'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: files.length,
-            separatorBuilder: (ctx, i) => const Divider(),
-            itemBuilder: (context, index) {
-              final file = files[index];
-              return ListTile(
-                leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                title: Text(file.name ?? 'Unknown Report'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {
-                  // Keep dialog open or close? Usually close if navigating away,
-                  // but for PDF viewer push, keeping it open might be weird when coming back.
-                  // Let's keep it open so they can view multiple reports.
-                  _viewLetter(file.url);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showLetterDetails(BookingGrouped parent) async {
-    // Show dialog with loading state initially
-    showDialog(
-      context: context,
-      builder: (ctx) => _BookingDetailsDialog(
-        parent: parent,
-        marketingService: _marketingService,
-        userCode: widget.userCode,
-      ),
-    );
-  }
-}
-
-class _BookingDetailsDialog extends StatefulWidget {
-  final BookingGrouped parent;
-  final MarketingService marketingService;
-  final String userCode;
-
-  const _BookingDetailsDialog({
-    required this.parent,
-    required this.marketingService,
-    required this.userCode,
-  });
-
-  @override
-  State<_BookingDetailsDialog> createState() => _BookingDetailsDialogState();
-}
-
-class _BookingDetailsDialogState extends State<_BookingDetailsDialog> {
-  // Since we already have items in BookingGrouped, we might not need to fetch again
-  // But if the list is truncated or we want fresh details, we can keep the logic.
-  // Docs say /bookings/showbooking returns full items list structure.
-  // I'll display what we have in parent.items directly.
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Booking Items for ${widget.parent.clientName}'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: ListView.separated(
-          shrinkWrap: true,
-          itemCount: widget.parent.items.length,
-          separatorBuilder: (ctx, i) => Divider(),
-          itemBuilder: (context, index) {
-            final item = widget.parent.items[index];
-            return ListTile(
-              title:
-                  Text(item.sampleDescription ?? item.particulars ?? 'Sample'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Job: ${item.jobOrderNo ?? '-'}'),
-                  Text('Quality: ${item.sampleQuality ?? '-'}'),
-                  Text('Status: ${item.status ?? '-'}'),
-                  if (item.labExpectedDate != null)
-                    Text('Exp: ${item.labExpectedDate}'),
-                ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AuroraBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverAppBar(
+              title: Text('Bookings', style: AppTypography.headlineMedium),
+              centerTitle: true,
+              floating: true,
+              snap: true,
+              pinned: true,
+              elevation: 0,
+              backgroundColor: isDark
+                  ? Colors.black.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.5),
+              flexibleSpace: ClipRRect(
+                child: Container(color: Colors.transparent),
               ),
-              trailing: item.amount != null ? Text(item.amount!) : null,
-            );
-          },
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: TabBar(
+                  controller: _tabController,
+                  labelStyle: AppTypography.labelLarge,
+                  unselectedLabelStyle: AppTypography.bodyMedium,
+                  indicatorColor: AppPalette.electricBlue,
+                  labelColor: AppPalette.electricBlue,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: const [
+                    Tab(text: 'All Bookings'),
+                    Tab(text: 'By Letter'),
+                  ],
+                ),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () {
+                    setState(() {
+                      _bookings = [];
+                      _letters = [];
+                    });
+                    _fetchData();
+                  },
+                ),
+              ],
+            ),
+          ],
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildBookingsTab(),
+              _buildLettersTab(),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close')),
+    );
+  }
+
+  Widget _buildBookingsTab() {
+    return CustomScrollView(
+      controller: _bookingScrollController,
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: FilterIsland(
+              onFilterTap: _openFilterDialog,
+              onClearTap: _clearFilters,
+              activeFilters: _activeFilters,
+            ),
+          ),
+        ),
+        if (_isLoading && _bookings.isEmpty)
+          const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator())),
+        if (!_isLoading && _bookings.isEmpty)
+          const SliverFillRemaining(
+              child: Center(child: Text('No bookings found'))),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                if (index == _bookings.length) {
+                  return _isLoadingMore
+                      ? const Center(child: CircularProgressIndicator())
+                      : const SizedBox(height: 60);
+                }
+
+                final item = _bookings[index];
+                final status = item.statusDetail ?? item.status ?? 'Unknown';
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                  child: DataListTile(
+                    title: item.jobOrderNo ?? 'N/A',
+                    subtitle: item.clientName ?? 'Unknown Client',
+                    statusPill: _buildStatusPill(status),
+                    compactRows: [
+                      InfoRow(
+                          icon: Icons.calendar_today,
+                          label: 'Received',
+                          value: item.receivedAt ?? '-'),
+                      InfoRow(
+                          icon: Icons.qr_code,
+                          label: 'Ref',
+                          value: item.referenceNo ?? '-'),
+                    ],
+                    expandedRows: [
+                      InfoRow(
+                          icon: Icons.science,
+                          label: 'Sample',
+                          value: item.sampleQuality ?? '-'),
+                      InfoRow(
+                          icon: Icons.description,
+                          label: 'Particulars',
+                          value: item.particulars ?? '-'),
+                      InfoRow(
+                          icon: Icons.date_range,
+                          label: 'Expected',
+                          value: item.labExpectedDate ?? '-'),
+                    ],
+                    actions: [
+                      if (item.letterUrl != null)
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.picture_as_pdf, size: 14),
+                          label: const Text('View Letter'),
+                          onPressed: () => FileViewerService.viewFile(
+                              context, item.letterUrl!),
+                        ),
+                    ],
+                  ),
+                ).animate().fadeIn(duration: 50.ms).slideY(begin: 0.1, end: 0);
+              },
+              childCount: _bookings.length + 1,
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _buildLettersTab() {
+    return CustomScrollView(
+      controller: _letterScrollController,
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: FilterIsland(
+              onFilterTap: _openFilterDialog,
+              onClearTap: _clearFilters,
+              activeFilters: _activeFilters,
+            ),
+          ),
+        ),
+        if (_isLoading && _letters.isEmpty)
+          const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator())),
+        if (!_isLoading && _letters.isEmpty)
+          const SliverFillRemaining(
+              child: Center(child: Text('No letters found'))),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                if (index == _letters.length) {
+                  return _isLoadingMore
+                      ? const Center(child: CircularProgressIndicator())
+                      : const SizedBox(height: 60);
+                }
+
+                final item = _letters[index];
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                  child: DataListTile(
+                    title: item.clientName ?? 'Unknown Client',
+                    subtitle: item.referenceNo ?? 'No Reference',
+                    statusPill: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppPalette.electricBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${item.itemsCount} Items',
+                        style: AppTypography.labelSmall.copyWith(
+                            color: AppPalette.electricBlue,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    compactRows: [
+                      if (item.referenceNo != null)
+                        InfoRow(
+                            icon: Icons.tag,
+                            label: 'Ref',
+                            value: item.referenceNo!),
+                    ],
+                    expandedRows: [
+                      const Divider(),
+                      ...item.items.map((subItem) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Row(
+                              children: [
+                                Icon(Icons.circle, size: 6, color: Colors.grey),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(subItem.jobOrderNo ?? '-',
+                                          style: AppTypography.labelSmall),
+                                      Text(
+                                          '${subItem.sampleQuality} • ${subItem.status}',
+                                          style: AppTypography.bodySmall
+                                              .copyWith(color: Colors.grey)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
+                    ],
+                    actions: [
+                      if (item.uploadLetterUrl != null)
+                        TextButton.icon(
+                          icon: const Icon(Icons.picture_as_pdf, size: 14),
+                          label: const Text('Letter'),
+                          onPressed: () => FileViewerService.viewFile(
+                              context, item.uploadLetterUrl!),
+                        ),
+                      if (item.invoiceUrl != null)
+                        TextButton.icon(
+                          icon: const Icon(Icons.receipt_long, size: 14),
+                          label: const Text('Invoice'),
+                          onPressed: () => FileViewerService.viewFile(
+                              context, item.invoiceUrl!),
+                        ),
+                    ],
+                  ),
+                ).animate().fadeIn(duration: 50.ms).slideY(begin: 0.1, end: 0);
+              },
+              childCount: _letters.length + 1,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusPill(String status) {
+    final color = _getStatusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style:
+            TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
     );
   }
 }
