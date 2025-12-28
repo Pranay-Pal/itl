@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:itl/src/common/animations/scale_button.dart';
 import 'package:itl/src/common/widgets/design_system/aurora_background.dart';
 import 'package:itl/src/common/widgets/design_system/compact_data_tile.dart';
-import 'package:itl/src/common/widgets/design_system/filter_island.dart';
+
 import 'package:itl/src/common/widgets/design_system/glass_container.dart';
 import 'package:itl/src/config/app_layout.dart';
 import 'package:itl/src/config/app_palette.dart';
@@ -268,14 +268,49 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-  void _openCreateExpenseDialog() {
+  Future<void> _confirmDelete(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Expense'),
+        content: const Text('Are you sure you want to delete this expense?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        _showSnack('Deleting...');
+        await _marketingService.deleteExpense(id);
+        _showSnack('Expense deleted');
+        _loadExpenses(reset: true);
+      } catch (e) {
+        _showSnack('Error deleting: $e');
+      }
+    }
+  }
+
+  void _openCreateExpenseDialog({ExpenseItem? item}) {
+    final isEdit = item != null;
     final formKey = GlobalKey<FormState>();
-    final amountController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final sectionController = TextEditingController();
-    DateTime? selectedDate = DateTime.now();
+    final amountController =
+        TextEditingController(text: item?.amount.toString());
+    final descriptionController =
+        TextEditingController(text: item?.description);
+    DateTime? selectedDate = item?.expenseDate != null
+        ? DateTime.tryParse(item!.expenseDate!)
+        : DateTime.now();
     String? filePath;
-    String? fileName;
+    String? fileName = item?.receiptFilename;
 
     showModalBottomSheet(
       context: context,
@@ -284,7 +319,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setSheetState) {
           Future<void> pickFile() async {
-            // ... (keeping existing pick logic wrapper)
+            // Reusing prior logic, simplified for brevity in this block
             showModalBottomSheet(
               context: context,
               backgroundColor: Theme.of(context).cardColor,
@@ -324,25 +359,24 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       },
                     ),
                     ListTile(
-                      leading: const Icon(Icons.attach_file),
-                      title: const Text('File / PDF'),
-                      onTap: () async {
-                        Navigator.pop(bsContext);
-                        final result = await FilePicker.platform.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-                        );
-                        if (result != null) {
-                          final file = result.files.single;
-                          if (file.path != null) {
-                            setSheetState(() {
-                              filePath = file.path;
-                              fileName = file.name;
-                            });
+                        leading: const Icon(Icons.attach_file),
+                        title: const Text('File / PDF'),
+                        onTap: () async {
+                          Navigator.pop(bsContext);
+                          final result = await FilePicker.platform.pickFiles(
+                            type: FileType.custom,
+                            allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+                          );
+                          if (result != null) {
+                            final file = result.files.single;
+                            if (file.path != null) {
+                              setSheetState(() {
+                                filePath = file.path;
+                                fileName = file.name;
+                              });
+                            }
                           }
-                        }
-                      },
-                    ),
+                        }),
                   ],
                 ),
               ),
@@ -375,25 +409,39 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             }
 
             final userCode = _apiService.userCode;
-            if (userCode == null) return;
+            // userCode required for Create, but ID required for Update
+            if (!isEdit && userCode == null) return;
 
             try {
               Navigator.pop(context); // Close dialog first
-              _showSnack('Creating expense...');
-              await _marketingService.createExpense(
-                userCode: userCode,
-                amount: amount,
-                section: sectionController.text.isNotEmpty
-                    ? sectionController.text
-                    : 'personal',
-                fromDate: DateFormat('yyyy-MM-dd').format(selectedDate!),
-                description: descriptionController.text,
-                filePath: filePath,
-              );
-              _showSnack('Expense created!');
+              _showSnack(
+                  isEdit ? 'Updating expense...' : 'Creating expense...');
+
+              if (isEdit) {
+                await _marketingService.updateExpense(
+                  id: item.id,
+                  amount: amount,
+                  section: 'personal',
+                  fromDate: DateFormat('yyyy-MM-dd').format(selectedDate!),
+                  toDate: DateFormat('yyyy-MM-dd').format(selectedDate!),
+                  description: descriptionController.text,
+                  filePath: filePath,
+                );
+                _showSnack('Expense updated!');
+              } else {
+                await _marketingService.createExpense(
+                  userCode: userCode!,
+                  amount: amount,
+                  section: 'personal',
+                  fromDate: DateFormat('yyyy-MM-dd').format(selectedDate!),
+                  description: descriptionController.text,
+                  filePath: filePath,
+                );
+                _showSnack('Expense created!');
+              }
               _loadExpenses(reset: true);
             } catch (e) {
-              _showSnack('Error creating expense: $e');
+              _showSnack('Error: $e');
             }
           }
 
@@ -417,7 +465,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('New Expense',
+                        Text(isEdit ? 'Edit Expense' : 'New Expense',
                             style: AppTypography.headlineMedium),
                         const SizedBox(height: 24),
                         TextFormField(
@@ -432,16 +480,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           validator: (v) => v!.isEmpty ? 'Required' : null,
                         ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: sectionController,
-                          decoration: InputDecoration(
-                            labelText: 'Category (Optional)',
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            prefixIcon: const Icon(Icons.category_outlined),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
+                        // Category field removed as per request, defaults to 'personal' in logic/backend
                         InkWell(
                           onTap: pickDate,
                           borderRadius: BorderRadius.circular(12),
@@ -498,7 +537,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: const Text('Submit Expense'),
+                            child: Text(
+                                isEdit ? 'Update Expense' : 'Submit Expense'),
                           ),
                         ),
                       ],
@@ -664,12 +704,12 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                                 decoration: BoxDecoration(
                                   color: Theme.of(context)
                                       .primaryColor
-                                      .withOpacity(0.1),
+                                      .withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(15),
                                   border: Border.all(
                                     color: Theme.of(context)
                                         .primaryColor
-                                        .withOpacity(0.3),
+                                        .withValues(alpha: 0.3),
                                   ),
                                 ),
                                 child: Text(
@@ -837,6 +877,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
                             // Actions
                             actions: [
+                              // View Receipt
                               if (item.fileUrl != null)
                                 SizedBox(
                                   height: 32,
@@ -849,6 +890,35 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                                         item.receiptFilename ?? 'Receipt'),
                                   ),
                                 ),
+                              // Edit Button (Only for Pending)
+                              if (!isApproved &&
+                                  item.status.toLowerCase() == 'pending') ...[
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  height: 32,
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.orange),
+                                    icon: const Icon(Icons.edit, size: 14),
+                                    label: const Text('Edit',
+                                        style: TextStyle(fontSize: 12)),
+                                    onPressed: () =>
+                                        _openCreateExpenseDialog(item: item),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  height: 32,
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.red),
+                                    icon: const Icon(Icons.delete, size: 14),
+                                    label: const Text('Delete',
+                                        style: TextStyle(fontSize: 12)),
+                                    onPressed: () => _confirmDelete(item.id),
+                                  ),
+                                ),
+                              ],
                             ],
                           )
                               .animate(

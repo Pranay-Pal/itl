@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class CheckedInExpense {
   final int id;
   final String? url;

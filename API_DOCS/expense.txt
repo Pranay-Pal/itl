@@ -1,0 +1,88 @@
+Auth: use multi_jwt:api / multi_jwt:api_admin or auth:sanctum depending on client.
+List personal expenses (generic)
+Method: GET
+Path: /api/expenses
+Query: section=personal, status=[all|pending|approved|rejected], page, perPage, search, month, year
+Auth: required
+Notes: handled by App\Http\Controllers\Api\ExpenseApiController@index
+Create personal expense
+Method: POST
+Path: /api/expenses
+Body (form-data or JSON):
+marketing_person_code (string)
+marketing_person_name (string)
+amount (decimal)
+from_date (YYYY-MM-DD)
+to_date (YYYY-MM-DD)
+description (string, optional)
+section (string) — use "personal"
+pdf (file, optional)
+Response: { success: true, data: { expense: { id,... } }, dailyRowHtml?, rowHtml? }
+Show single expense
+Method: GET
+Path: /api/expenses/{expense}
+Auth: required
+Response: expense JSON
+Update personal expense
+Method: PUT or PATCH
+Path: /api/expenses/{expense}
+Body: same fields as create (pdf allowed)
+Response: { success: true, rowHtml, dailyRowHtml, amount, approved_amount, ... }
+Notes: server enforces section === 'personal' for personal update endpoints in MarketingExpenseController::updatePersonal
+Delete personal expense
+Method: DELETE (or POST with _method=DELETE)
+Path: /api/expenses/{expense}
+Response: { success: true, amount, approved_amount, due_amount, submitted_for_approval }
+Send personal expenses for approval (summary PDF generation)
+Method: POST
+Path: /api/expenses/personal/send-for-approval
+Body: filters or explicit expense ids (per UI)
+Response: { success: true, message, cleared_ids? }
+Note: existing route in api.php -> ExpenseApiController::sendPersonalForApproval
+Mobile-specific personal endpoints (per marketing user)
+Method: GET
+Path: /api/{user_code}/personal/expenses
+Method: POST
+Path: /api/{user_code}/personal/expenses
+Controller: App\Http\Controllers\MobileControllers\Accounts\MarketingPersonInfo (names from api.php)
+Checked-in (Cleared / In-Account) listing — new API added
+Method: GET
+
+Path: /api/superadmin/personal/checked-in
+
+Query params:
+
+per_page (int) default 15
+page (int)
+mine (bool) — if true returns only checked-in items that belong to auth user (matches Blade filtering rules)
+search (string) — match filename, display name, person code
+Auth: multi_jwt:api
+
+Response shape:
+{
+"success": true,
+"data": {
+"current_page": 1,
+"data": [
+{
+"id": 123,
+"path": "marketing_expenses/in_account/in-account-approved-20251226.pdf",
+"url": "...",
+"filename": "in-account-approved-20251226.pdf",
+"meta": { /* metadata saved when PDF created */ },
+"approver_id": 5,
+"approved_total": 1500.0,
+"approved_section": "personal",
+"created_at": "2025-12-26 10:00:00",
+"person_name": "John Doe",
+"person_code": "MP001",
+"approver_name": "Manager",
+"display_name": "John Doe"
+}
+],
+"per_page": 15,
+"total": 42,
+"last_page": 3,
+"links": [ ... ]
+}
+}

@@ -512,7 +512,7 @@ class _PendingFilterModalState extends State<_PendingFilterModal> {
               contentPadding: EdgeInsets.zero,
               title: const Text('Overdue Only'),
               value: _overdue,
-              activeColor: Colors.red,
+              activeThumbColor: Colors.red,
               onChanged: (v) => setState(() => _overdue = v),
             ),
 

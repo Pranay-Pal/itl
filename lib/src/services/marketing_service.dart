@@ -428,4 +428,68 @@ class MarketingService {
           'Failed to load checked-in expenses: ${response.statusCode} ${response.body}');
     }
   }
+
+  Future<ExpenseItem?> updateExpense({
+    required int id,
+    required double amount,
+    String? section,
+    String? fromDate,
+    String? toDate,
+    String? description,
+    String? filePath,
+  }) async {
+    // Laravel often requires POST with _method=PUT for multipart updates
+    final uri = Uri.parse('${ApiService.baseUrl}/expenses/$id');
+
+    var request = http.MultipartRequest('POST', uri);
+    request.headers.addAll({
+      'Accept': 'application/json',
+      'Authorization': 'Bearer ${_apiService.token}',
+    });
+
+    request.fields['_method'] = 'PUT';
+    request.fields['amount'] = amount.toString();
+    if (toDate != null) request.fields['to_date'] = toDate;
+    if (section != null) request.fields['section'] = section;
+    if (fromDate != null) request.fields['from_date'] = fromDate;
+    if (description != null) request.fields['description'] = description;
+
+    if (filePath != null) {
+      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    }
+
+    debugPrint('Updating expense: $uri');
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    debugPrint(
+        'Update Expense Response: ${response.statusCode} ${response.body}');
+
+    if (response.statusCode == 200) {
+      // final json = jsonDecode(response.body);
+      // Response { success: true, data: { expense: {...} } ... } ???
+      // Docs say: { success: true, rowHtml, dailyRowHtml, amount, approved_amount ... }
+      // It might NOT return the full object in valid structure.
+      // We will parse what we can or return null to trigger reload.
+      debugPrint('Expense updated successfully');
+      return null;
+    } else {
+      throw Exception('Failed to update expense: ${response.body}');
+    }
+  }
+
+  Future<void> deleteExpense(int id) async {
+    final uri = Uri.parse('${ApiService.baseUrl}/expenses/$id');
+    debugPrint('Deleting expense: $uri');
+
+    final response = await http.delete(uri, headers: _headers);
+
+    debugPrint('Delete Expense Response: ${response.statusCode}');
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      return;
+    } else {
+      throw Exception('Failed to delete expense: ${response.body}');
+    }
+  }
 }
