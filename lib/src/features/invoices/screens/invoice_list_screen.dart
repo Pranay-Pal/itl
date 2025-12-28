@@ -357,55 +357,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                               child: Divider(),
                             ),
 
-                            // Booking Items List
-                            ...item.bookingItems.map((subItem) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Icon(Icons.circle,
-                                          size: 6, color: Colors.grey[400]),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                                subItem.sampleDescription ??
-                                                    'Item',
-                                                style:
-                                                    AppTypography.labelSmall),
-                                            if (subItem.jobOrderNo != null)
-                                              Text('JO: ${subItem.jobOrderNo}',
-                                                  style: AppTypography.bodySmall
-                                                      .copyWith(
-                                                          fontSize: 10,
-                                                          color: Colors.grey)),
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Text(
-                                                    '${subItem.qty} x ₹${subItem.rate}',
-                                                    style: AppTypography
-                                                        .bodySmall
-                                                        .copyWith(
-                                                            color:
-                                                                Colors.grey)),
-                                                Text('₹${subItem.amount}',
-                                                    style: AppTypography
-                                                        .labelSmall),
-                                              ],
-                                            )
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )),
+                            // Booking Items List Removed as per request
                           ],
                           actions: [
                             if (item.invoiceLetterUrl != null)

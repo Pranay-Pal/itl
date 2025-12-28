@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:itl/src/config/base_url.dart' as config;
 
 class ApiService {
   // Make ApiService a singleton so token/state is shared across the app
@@ -10,8 +11,7 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  static const String baseUrl =
-      "https://mediumslateblue-hummingbird-258203.hostingersite.com/api";
+  static const String baseUrl = "${config.baseUrl}/api";
   final String _baseUrl = baseUrl;
   String? _token;
   String? _userType;

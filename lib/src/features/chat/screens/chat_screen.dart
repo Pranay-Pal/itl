@@ -19,9 +19,7 @@ import 'package:itl/src/services/pusher_service.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 import 'package:itl/src/features/chat/widgets/voice_message_player_widget.dart'
     as voice_widget;
-
-const String baseUrl =
-    "https://mediumslateblue-hummingbird-258203.hostingersite.com/api";
+import 'package:itl/src/config/base_url.dart' as config;
 
 class ChatScreen extends StatefulWidget {
   final int groupId;
@@ -317,8 +315,8 @@ class _ChatScreenState extends State<ChatScreen> {
     // backend stores under public/chat/... and serves from /storage/chat/...
     final storagePath = filePath.replaceFirst(RegExp(r'^public/'), 'storage/');
 
-    final host = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
-    final root = host.replaceAll('/api/', '').replaceAll('/api', '');
+    final host = config.baseUrl.endsWith('/') ? config.baseUrl : '${config.baseUrl}/';
+    final root = host;
     return '$root/${storagePath.startsWith('/') ? storagePath.substring(1) : storagePath}';
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 import 'package:itl/src/services/api_service.dart';
+import 'package:itl/src/config/base_url.dart' as config;
 
 class PusherService {
   static final PusherService _instance = PusherService._internal();
@@ -22,9 +23,7 @@ class PusherService {
     // Need to get token for auth
     final apiService = ApiService();
     await apiService.ensureInitialized();
-    final token = apiService
-        .token; // Need to expose token from ApiService? Or just use _token if exposed.
-    // Making token accessible in ApiService is needed effectively.
+    final token = apiService.token;
 
     // Using headers for auth params
     final authParams = {
@@ -38,8 +37,7 @@ class PusherService {
       await pusher.init(
         apiKey: dotenv.env['PUSHER_APP_KEY']!,
         cluster: dotenv.env['PUSHER_APP_CLUSTER']!,
-        authEndpoint:
-            "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/broadcasting/auth",
+        authEndpoint: "${config.baseUrl}/api/broadcasting/auth",
         authParams: authParams,
         onConnectionStateChange: onConnectionStateChange,
         onError: onError,

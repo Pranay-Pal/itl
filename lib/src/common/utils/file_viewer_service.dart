@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:itl/src/services/download_util.dart';
 import 'package:itl/src/shared/screens/pdf_viewer_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:itl/src/config/base_url.dart' as config;
 
 class FileViewerService {
   const FileViewerService._();
@@ -20,13 +21,12 @@ class FileViewerService {
     String fullUrl = url;
     if (!url.startsWith('http')) {
       // Using the host logic seen in Bookings/Reports
-      // Ideally this base URL should be in a global constant, but using the specific one found in code
-      fullUrl =
-          "https://mediumslateblue-hummingbird-258203.hostingersite.com/$url";
+      final host = config.baseUrl;
+      fullUrl = host.endsWith('/') ? "$host$url" : "$host/$url";
+      
       // Handle double slashes if url started with /
       if (url.startsWith('/')) {
-        fullUrl =
-            "https://mediumslateblue-hummingbird-258203.hostingersite.com$url";
+        fullUrl = host.endsWith('/') ? "$host${url.substring(1)}" : "$host$url";
       }
     }
 
