@@ -210,7 +210,7 @@ class BookingItemNested {
   factory BookingItemNested.fromJson(Map<String, dynamic> json) {
     return BookingItemNested(
       id: json['id'],
-      jobOrderNo: json['job_order_no'],
+      jobOrderNo: json['job_order_no'] ?? json['job_order_number'],
       sampleDescription: json['sample_description'],
       sampleQuality: json['sample_quality'],
       status: json['status'],

@@ -1,0 +1,52 @@
+[
+  {
+    "name": "profile",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/profile"
+  },
+  {
+    "name": "overview",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-dashboard/MKT001/overview"
+  },
+  {
+    "name": "bookings_flat",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/bookings/by-letter?page=1&perPage=10"
+  },
+  {
+    "name": "bookings_by_letter",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/bookings/showbooking?page=1&perPage=10"
+  },
+  {
+    "name": "invoices",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/invoices/list?page=1&perPage=10"
+  },
+  {
+    "name": "expenses",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/personal/expenses?page=1&perPage=10"
+  },
+  {
+    "name": "checked_in_expenses",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/superadmin/personal/checked-in?mine=1&page=1&perPage=10"
+  },
+  {
+    "name": "reports_by_job",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/reports/by-job-order?page=1&perPage=10"
+  },
+  {
+    "name": "reports_by_letter",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/bookings/view-by-letter?page=1&perPage=10"
+  },
+  {
+    "name": "meter_readings",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/meter-reading?page=1"
+  }
+]

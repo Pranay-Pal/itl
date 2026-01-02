@@ -9,6 +9,7 @@ import 'package:itl/src/features/invoices/models/invoice_model.dart';
 import 'package:itl/src/features/expenses/models/expense_model.dart';
 import 'package:itl/src/features/reports/models/pending_report_model.dart';
 import 'package:itl/src/features/expenses/models/checked_in_expense_model.dart';
+import 'package:itl/src/features/profile/models/marketing_profile_model.dart';
 
 class MarketingService {
   final ApiService _apiService = ApiService();
@@ -122,6 +123,24 @@ class MarketingService {
     } else {
       throw Exception(
           'Failed to load overview: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  Future<MarketingProfileResponse> getProfile(
+      {required String userCode}) async {
+    final uri =
+        Uri.parse('${ApiService.baseUrl}/marketing-person/$userCode/profile');
+
+    debugPrint('Fetching profile: $uri');
+
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final json = await _apiService.parseJson(response.body);
+      return MarketingProfileResponse.fromJson(json);
+    } else {
+      throw Exception(
+          'Failed to load profile: ${response.statusCode} ${response.body}');
     }
   }
 

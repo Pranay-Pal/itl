@@ -14,9 +14,11 @@ import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/services/pusher_service.dart';
 import 'package:itl/src/features/chat/screens/chat_list_screen.dart';
 import 'package:itl/src/services/api_service.dart';
+import 'package:itl/src/features/profile/screens/profile_screen.dart';
 import 'package:itl/src/features/auth/screens/login_page.dart';
 import 'package:itl/src/features/bookings/bookings.dart';
 import 'package:itl/src/features/reports/screens/reports_dashboard_screen.dart';
+import 'package:itl/src/features/meter/screens/meter_dashboard_screen.dart';
 import 'package:itl/src/features/reports/screens/pending_dashboard_screen.dart';
 import 'package:itl/src/features/expenses/screens/expenses_screen.dart';
 import 'package:itl/src/services/marketing_service.dart';
@@ -143,6 +145,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Stack(
                   children: [
                     IconButton(
+                        icon: const Icon(Icons.person_outline),
+                        onPressed: () {
+                          if (_isUser && _apiService.userCode != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ProfileScreen(
+                                    userCode: _apiService.userCode!),
+                              ),
+                            );
+                          }
+                        }),
+                  ],
+                ),
+                Stack(
+                  children: [
+                    IconButton(
                       icon: const Icon(Icons.chat_bubble_outline_rounded),
                       onPressed: () {
                         Navigator.push(
@@ -185,43 +204,88 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     // Quick Expense (Replaces old card)
                     _isUser
-                        ? ScaleButton(
-                            onTap: () {
-                              Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => const ExpensesScreen()));
-                            },
-                            child: GlassContainer(
-                              isNeon: true,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                        color: AppPalette.neonCyan
-                                            .withValues(alpha: 0.2),
-                                        shape: BoxShape.circle),
-                                    child: const Icon(Icons.add,
-                                        color: AppPalette.neonCyan),
+                        ? Row(
+                            children: [
+                              // Quick Expense
+                              Expanded(
+                                child: ScaleButton(
+                                  onTap: () {
+                                    Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const ExpensesScreen()));
+                                  },
+                                  child: GlassContainer(
+                                    isNeon: true,
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                              color: AppPalette.neonCyan
+                                                  .withValues(alpha: 0.2),
+                                              shape: BoxShape.circle),
+                                          child: const Icon(Icons.add,
+                                              color: AppPalette.neonCyan),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text('Expense',
+                                            style: AppTypography.labelLarge,
+                                            maxLines: 1),
+                                        Text('Add Receipt',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(color: Colors.grey),
+                                            maxLines: 1),
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Quick Expense',
-                                          style: AppTypography.labelLarge),
-                                      Text('Tap to add receipt',
-                                          style: AppTypography.bodySmall
-                                              .copyWith(color: Colors.grey)),
-                                    ],
-                                  ),
-                                ],
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: AppLayout.gapM),
+                              // Quick Meter Reading
+                              Expanded(
+                                child: ScaleButton(
+                                  onTap: () {
+                                    Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const MeterDashboardScreen()));
+                                  },
+                                  child: GlassContainer(
+                                    isNeon: true, // Matching style
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                              color: Colors.orangeAccent
+                                                  .withValues(alpha: 0.2),
+                                              shape: BoxShape.circle),
+                                          child: const Icon(Icons.speed,
+                                              color: Colors.orangeAccent),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text('Meter',
+                                            style: AppTypography.labelLarge,
+                                            maxLines: 1),
+                                        Text('Add Reading',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(color: Colors.grey),
+                                            maxLines: 1),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           )
                         : const SizedBox.shrink(),
 
@@ -309,6 +373,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         builder: (_) => ReportsDashboardScreen(
                                             userCode:
                                                 _apiService.userCode ?? '')));
+                              }
+                            },
+                          ),
+                        ),
+
+                        // 3.5 Meter Readings (Nav)
+                        StaggeredGridTile.count(
+                          crossAxisCellCount: 1,
+                          mainAxisCellCount: 1,
+                          child: _buildBentoCard(
+                            title: 'Meter',
+                            value: 'Readings',
+                            subtitle: 'Track Usage',
+                            icon: Icons.speed,
+                            color: Colors.orangeAccent,
+                            delay: 250,
+                            onTap: () {
+                              if (_isUser) {
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const MeterDashboardScreen()));
                               }
                             },
                           ),
@@ -655,6 +742,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Icons.pending_actions_rounded,
                   () => PendingDashboardScreen(
                       userCode: _apiService.userCode ?? '')),
+              _drawerItem(context, 'Meter Readings', Icons.speed_rounded,
+                  () => const MeterDashboardScreen()),
             ] else if (_apiService.userType == 'admin') ...[
               _drawerItem(context, 'Expenses', Icons.receipt_long_rounded,
                   () => const ExpensesScreen()),

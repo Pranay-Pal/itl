@@ -10,6 +10,7 @@ import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/reports/models/report_model.dart';
 import 'package:itl/src/features/bookings/models/booking_model.dart';
 import 'package:itl/src/services/marketing_service.dart';
+import 'package:itl/src/common/widgets/design_system/glass_container.dart';
 import 'package:itl/src/common/utils/file_viewer_service.dart';
 
 class ReportsDashboardScreen extends StatefulWidget {
@@ -444,73 +445,7 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
 
                   final item = _letters[index];
 
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppLayout.gapS),
-                    child: DataListTile(
-                      title: item.clientName ?? 'Unknown Client',
-                      subtitle: item.referenceNo ?? 'No Ref',
-                      statusPill: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppPalette.electricBlue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text('${item.itemsCount} Items',
-                            style: TextStyle(
-                                color: AppPalette.electricBlue,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold)),
-                      ),
-                      compactRows: [
-                        if (item.referenceNo != null)
-                          InfoRow(
-                              icon: Icons.tag,
-                              label: 'Ref',
-                              value: item.referenceNo!)
-                      ],
-                      expandedRows: [
-                        const Divider(),
-                        ...item.items.map((subItem) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(Icons.circle,
-                                      size: 6, color: Colors.grey[400]),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(subItem.jobOrderNo ?? 'N/A',
-                                            style: AppTypography.labelSmall),
-                                        Text(
-                                            '${subItem.sampleQuality} • ${subItem.status}',
-                                            style: AppTypography.bodySmall
-                                                .copyWith(color: Colors.grey))
-                                      ],
-                                    ),
-                                  )
-                                ])))
-                      ],
-                      actions: [
-                        if (item.uploadLetterUrl != null)
-                          TextButton.icon(
-                              icon: const Icon(Icons.picture_as_pdf, size: 14),
-                              label: const Text('Letter'),
-                              onPressed: () => FileViewerService.viewFile(
-                                  context, item.uploadLetterUrl!)),
-                        if (item.invoiceUrl != null)
-                          TextButton.icon(
-                              icon: const Icon(Icons.receipt_long, size: 14),
-                              label: const Text('Invoice'),
-                              onPressed: () => FileViewerService.viewFile(
-                                  context, item.invoiceUrl!))
-                      ],
-                    ),
-                  )
+                  return _LetterCard(item: item)
                       .animate()
                       .fadeIn(duration: 50.ms)
                       .slideY(begin: 0.1, end: 0);
@@ -652,5 +587,268 @@ class _ReportFilterModalState extends State<_ReportFilterModal> {
             )
           ],
         ));
+  }
+}
+
+class _LetterCard extends StatefulWidget {
+  final BookingGrouped item;
+
+  const _LetterCard({required this.item});
+
+  @override
+  State<_LetterCard> createState() => _LetterCardState();
+}
+
+class _LetterCardState extends State<_LetterCard> {
+  bool _showItems = false;
+
+  void _showFilesMenu(BuildContext context) {
+    // Collect all valid files
+    final files = <Map<String, String>>[];
+
+    // 1. Main Letter
+    if (widget.item.uploadLetterUrl != null) {
+      files.add({
+        'name': 'Main Letter',
+        'url': widget.item.uploadLetterUrl!,
+        'type': 'letter'
+      });
+    }
+
+    // 2. Invoice
+    if (widget.item.invoiceUrl != null) {
+      files.add({
+        'name': 'Invoice',
+        'url': widget.item.invoiceUrl!,
+        'type': 'invoice'
+      });
+    }
+
+    // 3. Additional Files
+    for (var f in widget.item.reportFiles) {
+      if (f.url != null) {
+        files.add(
+            {'name': f.name ?? 'Attachment', 'url': f.url!, 'type': 'file'});
+      }
+    }
+
+    if (files.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No files available for this letter')));
+      return;
+    }
+
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final overlay =
+        Overlay.of(context)!.context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero),
+            ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    showMenu<String>(
+      context: context,
+      position: position,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: files.map((file) {
+        IconData icon;
+        Color color;
+        switch (file['type']) {
+          case 'letter':
+            icon = Icons.mail_outline;
+            color = AppPalette.electricBlue;
+            break;
+          case 'invoice':
+            icon = Icons.receipt_long;
+            color = Colors.orange;
+            break;
+          default:
+            icon = Icons.attach_file;
+            color = Colors.grey;
+        }
+
+        return PopupMenuItem<String>(
+          value: file['url'],
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  file['name']!,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    ).then((url) {
+      if (url != null && context.mounted) {
+        FileViewerService.viewFile(context, url);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final hasFiles = item.uploadLetterUrl != null ||
+        item.invoiceUrl != null ||
+        item.reportFiles.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppLayout.gapM),
+      child: GlassContainer(
+        padding: const EdgeInsets.all(AppLayout.gapM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: Client & Status
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    item.clientName ?? 'Unknown Client',
+                    style: AppTypography.headlineSmall
+                        .copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppPalette.electricBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: AppPalette.electricBlue.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    '${item.itemsCount} Items',
+                    style: AppTypography.labelSmall.copyWith(
+                        color: AppPalette.electricBlue,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // Subtitle: Reference
+            if (item.referenceNo != null)
+              Row(
+                children: [
+                  const Icon(Icons.tag, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      item.referenceNo!,
+                      style: AppTypography.bodySmall
+                          .copyWith(color: Colors.grey[600]),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+
+            const SizedBox(height: AppLayout.gapM),
+
+            // Action Bar
+            Row(
+              children: [
+                // 1. Files Button
+                if (hasFiles)
+                  ElevatedButton.icon(
+                    onPressed: () => _showFilesMenu(context),
+                    icon: const Icon(Icons.folder_open, size: 16),
+                    label: const Text('Letter Files'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppPalette.electricBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 0),
+                        visualDensity: VisualDensity.compact,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8))),
+                  ),
+
+                const Spacer(),
+
+                // 2. Show/Hide Items Toggle
+                TextButton.icon(
+                  onPressed: () => setState(() => _showItems = !_showItems),
+                  icon: Icon(
+                      _showItems
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      size: 16),
+                  label: Text(_showItems ? 'Hide Items' : 'Show Items'),
+                  style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: Colors.grey),
+                ),
+              ],
+            ),
+
+            // Items List (Collapsible)
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: Column(
+                children: [
+                  const Divider(height: 24),
+                  ...item.items.map((subItem) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Icon(Icons.circle,
+                                  size: 6, color: Colors.grey[400]),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    subItem.jobOrderNo ?? 'N/A',
+                                    style: AppTypography.labelMedium
+                                        .copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    subItem.sampleQuality ?? '-',
+                                    style: AppTypography.bodySmall,
+                                  ),
+                                  Text(
+                                    subItem.status ?? '',
+                                    style: AppTypography.bodySmall.copyWith(
+                                        color: Colors.grey,
+                                        fontStyle: FontStyle.italic),
+                                  ),
+                                ],
+                              ),
+                            )
+                          ],
+                        ),
+                      )),
+                ],
+              ),
+              crossFadeState: _showItems
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 300),
+            )
+          ],
+        ),
+      ),
+    );
   }
 }
