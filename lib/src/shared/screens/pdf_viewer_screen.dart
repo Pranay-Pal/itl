@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:itl/src/config/constants.dart';
 import 'package:itl/src/services/download_util.dart';
+import 'dart:io';
 
 class PdfViewerScreen extends StatefulWidget {
   final String url;
@@ -30,6 +31,19 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       // Reuse downloadToCache helper if possible, or manual to ensure we have path for view
       final path = await downloadToCache(widget.url);
       debugPrint('PdfViewer: Downloaded to: $path');
+
+      if (path != null) {
+        final file = File(path);
+        if (await file.exists()) {
+          final bytes = await file.length();
+          debugPrint('PdfViewer: File size: $bytes bytes');
+          if (bytes < 1000) {
+            final content = await file.readAsString();
+            debugPrint('PdfViewer: File content (sneak peek): $content');
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
           localPath = path;
@@ -37,6 +51,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         });
       }
     } catch (e) {
+      debugPrint('PdfViewer Error: $e');
       if (mounted) {
         setState(() {
           _errorMessage = e.toString();

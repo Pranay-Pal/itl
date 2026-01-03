@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:itl/src/services/api_service.dart';
 
 String _sanitizeUrl(String url) => url.replaceAll('\\', '');
 
@@ -24,18 +25,35 @@ Future<String?> downloadToCache(String url, {String? fileName}) async {
     final filePath = '${dir.path}/$name';
 
     final file = File(filePath);
+
     if (await file.exists()) {
-      debugPrint('Cache hit: $filePath');
-      return filePath;
+      // Check if file is likely valid (PDFs are usually > 1KB)
+      // If it's small, it might be a 401/404 HTML response from previous failed attempts.
+      final len = await file.length();
+      if (len > 2048) {
+        debugPrint('Cache hit: $filePath ($len bytes)');
+        return filePath;
+      } else {
+        debugPrint(
+            'Cache hit but file too small ($len bytes) - possibly corrupt. Deleting and re-downloading.');
+        await file.delete();
+      }
     }
 
     debugPrint('Downloading to $filePath...');
+
+    // Get token
+    final token = ApiService().token;
+    final options = Options(
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 30),
+      headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+    );
+
     await Dio().download(
       _sanitizeUrl(url),
       filePath,
-      options: Options(
-          receiveTimeout: const Duration(seconds: 30),
-          sendTimeout: const Duration(seconds: 30)),
+      options: options,
     );
     debugPrint('Download complete: $filePath');
     return filePath;
@@ -87,7 +105,11 @@ Future<String> downloadFile(String url) async {
 
   debugPrint('downloadFile: Saving to $savePath');
 
-  await Dio().download(_sanitizeUrl(url), savePath,
+  final token = ApiService().token;
+  final options = Options(
+      headers: token != null ? {'Authorization': 'Bearer $token'} : null);
+
+  await Dio().download(_sanitizeUrl(url), savePath, options: options,
       onReceiveProgress: (rec, total) {
     if (total != -1) {
       debugPrint('Downloading: ${(rec / total * 100).toStringAsFixed(0)}%');

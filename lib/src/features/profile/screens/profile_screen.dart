@@ -6,6 +6,7 @@ import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/profile/models/marketing_profile_model.dart';
 import 'package:itl/src/features/profile/screens/personal_ledger_screen.dart';
 import 'package:itl/src/services/marketing_service.dart';
+import 'package:itl/src/features/settings/screens/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userCode;
@@ -84,9 +85,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: CircleAvatar(
                 radius: 50,
-                backgroundImage: _data!.avatar != null
-                    ? NetworkImage(_data!.avatar!)
-                    : null,
+                backgroundImage:
+                    _data!.avatar != null ? NetworkImage(_data!.avatar!) : null,
                 backgroundColor: Colors.grey.shade800,
                 child: _data!.avatar == null
                     ? const Icon(Icons.person, size: 50, color: Colors.white)
@@ -129,25 +129,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             const SizedBox(height: 16),
-             _buildMenuTile(
+            _buildMenuTile(
               icon: Icons.settings_outlined,
               title: 'Settings',
               subtitle: 'App preferences',
               onTap: () {
-                 // Placeholder
-                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settings coming soon')));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
               },
             ),
-             const SizedBox(height: 16),
-             _buildMenuTile(
+            const SizedBox(height: 16),
+            _buildMenuTile(
               icon: Icons.logout,
               title: 'Logout',
               subtitle: 'Sign out of your account',
               isDestructive: true,
               onTap: () {
-                 // Trigger logout logic (inherited from wherever this would be placed)
-                 // For now just show message
-                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Logout logic here')));
+                // Trigger logout logic (inherited from wherever this would be placed)
+                // For now just show message
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Logout logic here')));
               },
             ),
           ],
@@ -172,15 +175,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: isDestructive ? Colors.red.withValues(alpha:0.1) : AppPalette.electricBlue.withValues(alpha: 0.1),
+            color: isDestructive
+                ? Colors.red.withValues(alpha: 0.1)
+                : AppPalette.electricBlue.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: isDestructive ? Colors.red : AppPalette.electricBlue),
+          child: Icon(icon,
+              color: isDestructive ? Colors.red : AppPalette.electricBlue),
         ),
-        title: Text(title, style: AppTypography.labelLarge.copyWith(
-          color: isDestructive ? Colors.red : null
-        )),
-        subtitle: Text(subtitle, style: AppTypography.bodySmall.copyWith(color: Colors.grey)),
+        title: Text(title,
+            style: AppTypography.labelLarge
+                .copyWith(color: isDestructive ? Colors.red : null)),
+        subtitle: Text(subtitle,
+            style: AppTypography.bodySmall.copyWith(color: Colors.grey)),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       ),
     ).animate().fadeIn().slideX(begin: 0.1, end: 0);
