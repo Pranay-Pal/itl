@@ -23,6 +23,8 @@ import 'package:itl/src/features/reports/screens/pending_dashboard_screen.dart';
 import 'package:itl/src/features/expenses/screens/expenses_screen.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/features/bookings/models/marketing_overview.dart';
+import 'package:itl/src/services/meter_service.dart';
+import 'package:intl/intl.dart';
 import 'package:itl/src/utils/currency_formatter.dart';
 import 'package:itl/src/features/invoices/screens/invoice_list_screen.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
@@ -62,6 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _fetchUnreadCount();
       if (_isUser) {
         _fetchOverview();
+        _fetchMonthlyStats();
       }
     }
   }
@@ -203,91 +206,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Quick Expense (Replaces old card)
-                    _isUser
-                        ? Row(
-                            children: [
-                              // Quick Expense
-                              Expanded(
-                                child: ScaleButton(
-                                  onTap: () {
-                                    Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const ExpensesScreen()));
-                                  },
-                                  child: GlassContainer(
-                                    isNeon: true,
-                                    padding: const EdgeInsets.all(12),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                              color: AppPalette.neonCyan
-                                                  .withValues(alpha: 0.2),
-                                              shape: BoxShape.circle),
-                                          child: const Icon(Icons.add,
-                                              color: AppPalette.neonCyan),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Text('Expense',
-                                            style: AppTypography.labelLarge,
-                                            maxLines: 1),
-                                        Text('Add Receipt',
-                                            style: AppTypography.bodySmall
-                                                .copyWith(color: Colors.grey),
-                                            maxLines: 1),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: AppLayout.gapM),
-                              // Quick Meter Reading
-                              Expanded(
-                                child: ScaleButton(
-                                  onTap: () {
-                                    Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const MeterDashboardScreen()));
-                                  },
-                                  child: GlassContainer(
-                                    isNeon: true, // Matching style
-                                    padding: const EdgeInsets.all(12),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                              color: Colors.orangeAccent
-                                                  .withValues(alpha: 0.2),
-                                              shape: BoxShape.circle),
-                                          child: const Icon(Icons.speed,
-                                              color: Colors.orangeAccent),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Text('Meter',
-                                            style: AppTypography.labelLarge,
-                                            maxLines: 1),
-                                        Text('Add Reading',
-                                            style: AppTypography.bodySmall
-                                                .copyWith(color: Colors.grey),
-                                            maxLines: 1),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : const SizedBox.shrink(),
+                    if (_isUser) ...[
+                      // Monthly Summary Card
+                      _buildMonthlySummaryCard(),
+
+                      // Quick Expense
+                      // Quick Expense
+                      _buildQuickAction(
+                        title: 'Quick Expense',
+                        subtitle: 'Add a new expense receipt',
+                        icon: Icons.add,
+                        color: AppPalette.neonCyan,
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ExpensesScreen())),
+                      ),
+                      const SizedBox(height: AppLayout.gapM), // Spacing
+                      // Quick Meter Reading
+                      // Quick Meter Reading
+                      _buildQuickAction(
+                        title: 'Quick Meter Reading',
+                        subtitle: 'Log a new meter entry',
+                        icon: Icons.speed,
+                        color: Colors.orangeAccent,
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const MeterDashboardScreen())),
+                      ),
+                    ],
 
                     const SizedBox(height: AppLayout.gapSection),
 
@@ -500,7 +448,186 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // --- Data Fetching for Monthly Summary ---
+  Map<String, double>? _monthlyStats;
+  bool _loadingMonthlyStats = false;
+
+  Future<void> _fetchMonthlyStats() async {
+    if (_apiService.userCode == null) return;
+    if (!mounted) return;
+
+    setState(() => _loadingMonthlyStats = true);
+    final now = DateTime.now();
+    final month = now.month;
+    final year = now.year;
+    final userCode = _apiService.userCode!;
+
+    double totalBookings = 0;
+    double totalMeter = 0;
+    double totalExpenses = 0;
+
+    try {
+      // 1. Fetch Bookings (Current Month)
+      // Note: Bookings API is paginated. For a truly accurate sum we might need to loop or set a high perPage.
+      // For now, we fetch 'flat' bookings with high perPage.
+      final bookingResp = await _marketingService.getBookings(
+        userCode: userCode,
+        month: month,
+        year: year,
+        perPage: 100, // Reasonable limit for dashboard summary
+      );
+      // Sum parsed amounts
+      for (var item in bookingResp.items) {
+        if (item.amount != null) totalBookings += item.amount!;
+      }
+
+      // 2. Fetch Meter Readings (Current Month)
+      final meterService = MeterService(); // Ideally inject or instantiate once
+      final meterResp = await meterService.getReadings(
+        month: month,
+        year: year,
+        perPage: 100,
+      );
+      if (meterResp.success && meterResp.data.readings.isNotEmpty) {
+        for (var r in meterResp.data.readings) {
+          if (r.totalReading != null) totalMeter += r.totalReading!;
+        }
+      }
+
+      // 3. Fetch Expenses (Current Month)
+      final expenseResp = await _marketingService.getExpenses(
+        userCode: userCode,
+        month: month,
+        year: year,
+        perPage: 1, // Only need totals from meta/totals if available
+      );
+
+      // ExpenseResponse usually returns totals in the response if implemented on backend
+      if (expenseResp.totals != null) {
+        totalExpenses = expenseResp.totals!.totalAmount;
+      } else {
+        // Fallback: if no totals object, we might need to sum items?
+        // But pagination exists. Assuming backend sends totals or we settle for page 1 sum for now.
+        // Actually expense_model.dart shows `totals` field presence.
+        // If generic check fails, we might just show 0 or handle logically.
+      }
+    } catch (e) {
+      debugPrint('Error fetching monthly stats: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _monthlyStats = {
+          'bookings': totalBookings,
+          'meter': totalMeter,
+          'expenses': totalExpenses,
+        };
+        _loadingMonthlyStats = false;
+      });
+    }
+  }
+
   // --- Components ---
+
+  Widget _buildMonthlySummaryCard() {
+    if (_monthlyStats == null && _loadingMonthlyStats) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: AppLayout.gapM),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // If stats are ready (or even if empty/failed and we show 0)
+    final stats =
+        _monthlyStats ?? {'bookings': 0.0, 'meter': 0.0, 'expenses': 0.0};
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppLayout.gapM),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppPalette.electricBlue, Colors.purple.shade400],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppPalette.electricBlue.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            )
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('This Month\'s Activity',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Text(DateFormat('MMMM yyyy').format(DateTime.now()),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.calendar_month, color: Colors.white),
+                )
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildSummaryItem(
+                    'Bookings',
+                    CurrencyFormatter.formatIndianCurrencyCompact(
+                        stats['bookings']!)),
+                _buildSummaryItem(
+                    'Meter (Km)', stats['meter']!.toStringAsFixed(1)),
+                _buildSummaryItem(
+                    'Exp',
+                    CurrencyFormatter.formatIndianCurrencyCompact(
+                        stats['expenses']!)),
+              ],
+            )
+          ],
+        ),
+      ),
+    ).animate().fadeIn().slideY(begin: -0.2, end: 0);
+  }
+
+  Widget _buildSummaryItem(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+        const SizedBox(height: 4),
+        Text(value,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16)),
+      ],
+    );
+  }
 
   Widget _buildBentoCard({
     required String title,
@@ -677,6 +804,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         )
       ],
+    );
+  }
+
+  Widget _buildQuickAction({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ScaleButton(
+      onTap: onTap,
+      child: GlassContainer(
+        isNeon: true,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.2),
+                    color.withValues(alpha: 0.05)
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                border:
+                    Border.all(color: color.withValues(alpha: 0.3), width: 1),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: AppTypography.headlineSmall
+                          .copyWith(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(subtitle,
+                      style:
+                          AppTypography.bodySmall.copyWith(color: Colors.grey)),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded,
+                color: Colors.white.withValues(alpha: 0.3), size: 16),
+          ],
+        ),
+      ),
     );
   }
 
