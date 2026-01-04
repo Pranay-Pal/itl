@@ -72,6 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _fetchOverview() async {
     if (_apiService.userCode == null) return;
     try {
+      // Revert to fetching All-Time overview without monthly filters
       final overview =
           await _marketingService.getOverview(userCode: _apiService.userCode!);
       if (mounted) setState(() => _overview = overview);
@@ -495,15 +496,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     double totalExpenses = 0;
 
     try {
-      // 1. Fetch Bookings (Selected Month)
-      final bookingResp = await _marketingService.getBookings(
+      // 1. Fetch Bookings (Selected Month) via Overview Endpoint
+      // This is more efficient than fetching the list and summing client-side
+      final overviewResp = await _marketingService.getOverview(
         userCode: userCode,
         month: month,
         year: year,
-        perPage: 100,
       );
-      for (var item in bookingResp.items) {
-        if (item.amount != null) totalBookings += item.amount!;
+
+      if (overviewResp.data != null) {
+        // totalBookingAmount returns the value of bookings
+        if (overviewResp.data!.totalBookingAmount != null) {
+          totalBookings = overviewResp.data!.totalBookingAmount!.toDouble();
+        }
       }
 
       // 2. Fetch Meter Readings (Selected Month)
@@ -602,6 +607,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 });
                 Navigator.pop(ctx);
                 _fetchMonthlyStats();
+                // Do not refetch overview; it remains All-Time
               },
               child: const Text('Apply'),
             ),

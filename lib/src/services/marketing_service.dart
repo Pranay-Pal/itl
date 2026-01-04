@@ -110,9 +110,19 @@ class MarketingService {
     }
   }
 
-  Future<MarketingOverview> getOverview({required String userCode}) async {
+  Future<MarketingOverview> getOverview({
+    required String userCode,
+    int? month,
+    int? year,
+  }) async {
+    final queryParams = {
+      if (month != null) 'month': month.toString(),
+      if (year != null) 'year': year.toString(),
+    };
+
     final uri = Uri.parse(
-        '${ApiService.baseUrl}/marketing-dashboard/$userCode/overview');
+            '${ApiService.baseUrl}/marketing-dashboard/$userCode/overview')
+        .replace(queryParameters: queryParams);
 
     debugPrint('Fetching marketing overview: $uri');
 

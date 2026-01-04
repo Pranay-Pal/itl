@@ -55,10 +55,55 @@ Future<String?> downloadToCache(String url, {String? fileName}) async {
       filePath,
       options: options,
     );
+
+    // Validate the downloaded file
+    final downloadedFile = File(filePath);
+    if (await downloadedFile.exists()) {
+      final len = await downloadedFile.length();
+      // 1. Size Check: HTML 404s are usually small (< 2KB)
+      if (len < 100) {
+        debugPrint('File too small ($len bytes). Likely error response.');
+        await downloadedFile.delete();
+        throw Exception('File too small (likely error page)');
+      }
+
+      // 2. Content Check: Read first few bytes for Magic Number
+      // This prevents "Blank White Screen" from rendering HTML as PDF
+      try {
+        final openFile = await downloadedFile.open();
+        final bytes = await openFile.read(5);
+        await openFile.close();
+        final header = String.fromCharCodes(bytes);
+        debugPrint('File Header: $header');
+
+        // Simple check: most error pages start with < or <! or {
+        // Real PDFs start with %PDF-
+        // We won't be too strict, but we can catch obvious HTML
+        if (header.startsWith('<') ||
+            header.startsWith('{') ||
+            header.contains('HTML')) {
+          debugPrint('File appears to be HTML/JSON, not a document. Deleting.');
+          await downloadedFile.delete();
+          throw Exception('Invalid file format (Server returned text/html)');
+        }
+      } catch (e) {
+        debugPrint('Error validating file header: $e');
+        // If we can't read it, proceed with caution or fail?
+        // Let's allow it but log.
+      }
+    }
+
     debugPrint('Download complete: $filePath');
     return filePath;
   } catch (e) {
     debugPrint('Download error: $e');
+    // If it was a 404, Dio usually throws DioException
+    if (e is DioException) {
+      if (e.response?.statusCode == 404) {
+        // It's a 404
+        return null;
+      }
+    }
     return null;
   }
 }
