@@ -28,6 +28,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
   // Filters
   int? _selectedMonth;
   int? _selectedYear;
+  int? _selectedDepartment; // Added Department filter
   String _searchTerm = '';
   final TextEditingController _searchController = TextEditingController();
   final int _currentYear = DateTime.now().year;
@@ -54,6 +55,11 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
           'Month: ${DateFormat.MMM().format(DateTime(0, _selectedMonth!))}');
     }
     if (_selectedYear != null) filters.add('Year: $_selectedYear');
+    if (_selectedDepartment != null) {
+      final deptName = ['General', 'BIS', 'NBCC', 'UTTRAKHAND']
+          .elementAtOrNull(_selectedDepartment! - 1);
+      if (deptName != null) filters.add('Dept: $deptName');
+    }
     return filters;
   }
 
@@ -97,6 +103,22 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
     if (!_tabController.indexIsChanging) {
       _fetchData();
     }
+  }
+
+  Future<void> _refreshBookings() async {
+    setState(() {
+      _bookings = [];
+      _currentPageBooking = 1;
+    });
+    await _fetchData();
+  }
+
+  Future<void> _refreshLetters() async {
+    setState(() {
+      _letters = [];
+      _currentPageLetter = 1;
+    });
+    await _fetchData();
   }
 
   Future<void> _fetchData({bool isLoadMore = false}) async {
@@ -144,6 +166,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
           year: _selectedYear,
           search: _searchTerm,
           page: pageToFetch,
+          department: _selectedDepartment,
         );
 
         if (mounted) {
@@ -196,7 +219,9 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
       _searchTerm = '';
       _searchController.clear();
       _selectedMonth = null;
+      _selectedMonth = null;
       _selectedYear = null;
+      _selectedDepartment = null;
     });
     _fetchData();
   }
@@ -269,6 +294,33 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Department',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int?>(
+                    value: _selectedDepartment,
+                    isDense: true,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(
+                          value: null, child: Text('All Departments')),
+                      DropdownMenuItem(value: 1, child: Text('General')),
+                      DropdownMenuItem(value: 2, child: Text('BIS')),
+                      DropdownMenuItem(value: 3, child: Text('NBCC')),
+                      DropdownMenuItem(value: 4, child: Text('UTTRAKHAND')),
+                    ],
+                    onChanged: (v) => setState(() => _selectedDepartment = v),
+                  ),
+                ),
+              ),
             ],
           ),
           actions: [
@@ -283,6 +335,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
                   _searchController.text = tempSearch.text;
                   _selectedMonth = tempMonth;
                   _selectedYear = tempYear;
+                  // _selectedDepartment already updated via onChanged
                 });
                 Navigator.pop(ctx);
                 _fetchData();
@@ -373,202 +426,217 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
   }
 
   Widget _buildBookingsTab() {
-    return CustomScrollView(
-      controller: _bookingScrollController,
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: FilterIsland(
-              onFilterTap: _openFilterDialog,
-              onClearTap: _clearFilters,
-              activeFilters: _activeFilters,
+    return RefreshIndicator(
+      onRefresh: _refreshBookings,
+      child: CustomScrollView(
+        controller: _bookingScrollController,
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: FilterIsland(
+                onFilterTap: _openFilterDialog,
+                onClearTap: _clearFilters,
+                activeFilters: _activeFilters,
+              ),
             ),
           ),
-        ),
-        if (_isLoading && _bookings.isEmpty)
-          const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator())),
-        if (!_isLoading && _bookings.isEmpty)
-          const SliverFillRemaining(
-              child: Center(child: Text('No bookings found'))),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                if (index == _bookings.length) {
-                  return _isLoadingMore
-                      ? const Center(child: CircularProgressIndicator())
-                      : const SizedBox(height: 60);
-                }
+          if (_isLoading && _bookings.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator())),
+          if (!_isLoading && _bookings.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: Text('No bookings found'))),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (index == _bookings.length) {
+                    return _isLoadingMore
+                        ? const Center(child: CircularProgressIndicator())
+                        : const SizedBox(height: 60);
+                  }
 
-                final item = _bookings[index];
-                final status = item.statusDetail ?? item.status ?? 'Unknown';
+                  final item = _bookings[index];
+                  final status = item.statusDetail ?? item.status ?? 'Unknown';
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: AppLayout.gapS),
-                  child: DataListTile(
-                    title: item.jobOrderNo ?? 'N/A',
-                    subtitle: item.clientName ?? 'Unknown Client',
-                    statusPill: _buildStatusPill(status),
-                    compactRows: [
-                      InfoRow(
-                          icon: Icons.calendar_today,
-                          label: 'Received',
-                          value: item.receivedAt ?? '-'),
-                      InfoRow(
-                          icon: Icons.qr_code,
-                          label: 'Ref',
-                          value: item.referenceNo ?? '-'),
-                    ],
-                    expandedRows: [
-                      InfoRow(
-                          icon: Icons.science,
-                          label: 'Sample',
-                          value: item.sampleQuality ?? '-'),
-                      InfoRow(
-                          icon: Icons.description,
-                          label: 'Particulars',
-                          value: item.particulars ?? '-'),
-                      InfoRow(
-                          icon: Icons.date_range,
-                          label: 'Expected',
-                          value: item.labExpectedDate ?? '-'),
-                    ],
-                    actions: [
-                      if (item.letterUrl != null)
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.picture_as_pdf, size: 14),
-                          label: const Text('View Letter'),
-                          onPressed: () => FileViewerService.viewFile(
-                              context, item.letterUrl!),
-                        ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 50.ms).slideY(begin: 0.1, end: 0);
-              },
-              childCount: _bookings.length + 1,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                    child: DataListTile(
+                      title: item.jobOrderNo ?? 'N/A',
+                      subtitle: item.clientName ?? 'Unknown Client',
+                      statusPill: _buildStatusPill(status),
+                      compactRows: [
+                        InfoRow(
+                            icon: Icons.calendar_today,
+                            label: 'Received',
+                            value: item.receivedAt ?? '-'),
+                        InfoRow(
+                            icon: Icons.qr_code,
+                            label: 'Ref',
+                            value: item.referenceNo ?? '-'),
+                      ],
+                      expandedRows: [
+                        InfoRow(
+                            icon: Icons.science,
+                            label: 'Sample',
+                            value: item.sampleQuality ?? '-'),
+                        InfoRow(
+                            icon: Icons.description,
+                            label: 'Particulars',
+                            value: item.particulars ?? '-'),
+                        InfoRow(
+                            icon: Icons.date_range,
+                            label: 'Expected',
+                            value: item.labExpectedDate ?? '-'),
+                      ],
+                      actions: [
+                        if (item.letterUrl != null)
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.picture_as_pdf, size: 14),
+                            label: const Text('View Letter'),
+                            onPressed: () => FileViewerService.viewFile(
+                                context, item.letterUrl!),
+                          ),
+                      ],
+                    ),
+                  )
+                      .animate()
+                      .fadeIn(duration: 50.ms)
+                      .slideY(begin: 0.1, end: 0);
+                },
+                childCount: _bookings.length + 1,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildLettersTab() {
-    return CustomScrollView(
-      controller: _letterScrollController,
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: FilterIsland(
-              onFilterTap: _openFilterDialog,
-              onClearTap: _clearFilters,
-              activeFilters: _activeFilters,
+    return RefreshIndicator(
+      onRefresh: _refreshLetters,
+      child: CustomScrollView(
+        controller: _letterScrollController,
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: FilterIsland(
+                onFilterTap: _openFilterDialog,
+                onClearTap: _clearFilters,
+                activeFilters: _activeFilters,
+              ),
             ),
           ),
-        ),
-        if (_isLoading && _letters.isEmpty)
-          const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator())),
-        if (!_isLoading && _letters.isEmpty)
-          const SliverFillRemaining(
-              child: Center(child: Text('No letters found'))),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                if (index == _letters.length) {
-                  return _isLoadingMore
-                      ? const Center(child: CircularProgressIndicator())
-                      : const SizedBox(height: 60);
-                }
+          if (_isLoading && _letters.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator())),
+          if (!_isLoading && _letters.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: Text('No letters found'))),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (index == _letters.length) {
+                    return _isLoadingMore
+                        ? const Center(child: CircularProgressIndicator())
+                        : const SizedBox(height: 60);
+                  }
 
-                final item = _letters[index];
+                  final item = _letters[index];
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: AppLayout.gapS),
-                  child: DataListTile(
-                    title: item.clientName ?? 'Unknown Client',
-                    subtitle: item.referenceNo ?? 'No Reference',
-                    statusPill: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppPalette.electricBlue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                    child: DataListTile(
+                      title: item.clientName ?? 'Unknown Client',
+                      subtitle: item.referenceNo ?? 'No Reference',
+                      statusPill: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppPalette.electricBlue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${item.itemsCount} Items',
+                          style: AppTypography.labelSmall.copyWith(
+                              color: AppPalette.electricBlue,
+                              fontWeight: FontWeight.bold),
+                        ),
                       ),
-                      child: Text(
-                        '${item.itemsCount} Items',
-                        style: AppTypography.labelSmall.copyWith(
-                            color: AppPalette.electricBlue,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    compactRows: [
-                      if (item.referenceNo != null)
-                        InfoRow(
-                            icon: Icons.tag,
-                            label: 'Ref',
-                            value: item.referenceNo!),
-                    ],
-                    expandedRows: [
-                      const Divider(),
-                      ...item.items.map((subItem) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
-                              children: [
-                                Icon(Icons.circle, size: 6, color: Colors.grey),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(subItem.jobOrderNo ?? '-',
-                                          style: AppTypography.labelSmall),
-                                      Text(
-                                          '${subItem.sampleQuality} • ${subItem.status}',
-                                          style: AppTypography.bodySmall
-                                              .copyWith(color: Colors.grey)),
-                                    ],
+                      compactRows: [
+                        if (item.referenceNo != null)
+                          InfoRow(
+                              icon: Icons.tag,
+                              label: 'Ref',
+                              value: item.referenceNo!),
+                      ],
+                      expandedRows: [
+                        const Divider(),
+                        ...item.items.map((subItem) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.circle,
+                                      size: 6, color: Colors.grey),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(subItem.jobOrderNo ?? '-',
+                                            style: AppTypography.labelSmall),
+                                        Text(
+                                            '${subItem.sampleQuality} • ${subItem.status}',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(color: Colors.grey)),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          )),
-                    ],
-                    actions: [
-                      if (item.uploadLetterUrl != null)
-                        TextButton.icon(
-                          icon: const Icon(Icons.picture_as_pdf, size: 14),
-                          label: const Text('Letter'),
-                          onPressed: () => FileViewerService.viewFile(
-                              context, item.uploadLetterUrl!),
-                        ),
-                      if (item.invoiceUrl != null)
-                        TextButton.icon(
-                          icon: const Icon(Icons.receipt_long, size: 14),
-                          label: const Text('Invoice'),
-                          onPressed: () => FileViewerService.viewFile(
-                              context, item.invoiceUrl!),
-                        ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 50.ms).slideY(begin: 0.1, end: 0);
-              },
-              childCount: _letters.length + 1,
+                                ],
+                              ),
+                            )),
+                      ],
+                      actions: [
+                        if (item.uploadLetterUrl != null)
+                          TextButton.icon(
+                            icon: const Icon(Icons.picture_as_pdf, size: 14),
+                            label: const Text('Letter'),
+                            onPressed: () => FileViewerService.viewFile(
+                                context, item.uploadLetterUrl!),
+                          ),
+                        if (item.invoiceUrl != null)
+                          TextButton.icon(
+                            icon: const Icon(Icons.receipt_long, size: 14),
+                            label: const Text('Invoice'),
+                            onPressed: () => FileViewerService.viewFile(
+                                context, item.invoiceUrl!),
+                          ),
+                      ],
+                    ),
+                  )
+                      .animate()
+                      .fadeIn(duration: 50.ms)
+                      .slideY(begin: 0.1, end: 0);
+                },
+                childCount: _letters.length + 1,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

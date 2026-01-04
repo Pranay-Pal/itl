@@ -70,8 +70,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildContent() {
     final profile = _data!.profile;
 
-    return Center(
-      child: Padding(
+    return RefreshIndicator(
+      onRefresh: _fetchProfile,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [

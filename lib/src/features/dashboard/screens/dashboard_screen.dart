@@ -132,317 +132,343 @@ class _DashboardScreenState extends State<DashboardScreen> {
       extendBodyBehindAppBar: true, // Allow body to scroll behind app bar
       drawer: _buildDrawer(context),
       body: AuroraBackground(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // Floating Sliver App Bar
-            SliverAppBar(
-              floating: true,
-              snap: true,
-              title: const Text('Dashboard'), // TextStyle handled by Theme
-              backgroundColor:
-                  theme.scaffoldBackgroundColor.withValues(alpha: 0.7),
-              elevation: 0,
-              centerTitle: false,
-              actions: [
-                Stack(
-                  children: [
-                    IconButton(
-                        icon: const Icon(Icons.person_outline),
-                        onPressed: () {
-                          if (_isUser && _apiService.userCode != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ProfileScreen(
-                                    userCode: _apiService.userCode!),
-                              ),
-                            );
-                          }
-                        }),
-                  ],
-                ),
-                Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.chat_bubble_outline_rounded),
-                      onPressed: () {
-                        Navigator.push(
+        child: RefreshIndicator(
+          onRefresh: _initializeApp,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(
+                parent:
+                    AlwaysScrollableScrollPhysics()), // Ensure scroll even if content is short
+            slivers: [
+              // Floating Sliver App Bar
+              SliverAppBar(
+                floating: true,
+                snap: true,
+                title: const Text('Dashboard'), // TextStyle handled by Theme
+                backgroundColor:
+                    theme.scaffoldBackgroundColor.withValues(alpha: 0.7),
+                elevation: 0,
+                centerTitle: false,
+                actions: [
+                  Stack(
+                    children: [
+                      IconButton(
+                          icon: const Icon(Icons.person_outline),
+                          onPressed: () {
+                            if (_isUser && _apiService.userCode != null) {
+                              Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) => const ChatListScreen()))
-                            .then((_) => _fetchUnreadCount());
-                      },
-                    ),
-                    if (_totalUnreadCount > 0)
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                              color: AppPalette.dangerRed,
-                              shape: BoxShape.circle),
-                          child: Text(
-                            '$_totalUnreadCount',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
-
-            // Main Content
-            SliverPadding(
-              padding: const EdgeInsets.all(AppLayout.gapL),
-              sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Quick Expense (Replaces old card)
-                    if (_isUser) ...[
-                      // Monthly Summary Card
-                      _buildMonthlySummaryCard(),
-
-                      // Quick Expense
-                      // Quick Expense
-                      _buildQuickAction(
-                        title: 'Quick Expense',
-                        subtitle: 'Add a new expense receipt',
-                        icon: Icons.add,
-                        color: AppPalette.neonCyan,
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const ExpensesScreen())),
-                      ),
-                      const SizedBox(height: AppLayout.gapM), // Spacing
-                      // Quick Meter Reading
-                      // Quick Meter Reading
-                      _buildQuickAction(
-                        title: 'Quick Meter Reading',
-                        subtitle: 'Log a new meter entry',
-                        icon: Icons.speed,
-                        color: Colors.orangeAccent,
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const MeterDashboardScreen())),
-                      ),
+                                  builder: (_) => ProfileScreen(
+                                      userCode: _apiService.userCode!),
+                                ),
+                              );
+                            }
+                          }),
                     ],
-
-                    const SizedBox(height: AppLayout.gapSection),
-
-                    Text('Overview', style: AppTypography.headlineMedium)
-                        .animate()
-                        .fadeIn(),
-
-                    const SizedBox(height: AppLayout.gapM),
-
-                    // Bento Grid
-                    StaggeredGrid.count(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: AppLayout.gapM,
-                      crossAxisSpacing: AppLayout.gapM,
-                      children: [
-                        // 1. Bookings (Nav)
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 1,
-                          mainAxisCellCount: 1,
-                          child: _buildBentoCard(
-                            title: 'Bookings',
-                            value: data?.totalBookings?.toString() ?? '0',
-                            subtitle: CurrencyFormatter.formatIndianCurrency(
-                                data?.totalBookingAmount ?? 0),
-                            icon: Icons.calendar_today,
-                            color: AppPalette.electricBlue,
-                            delay: 100,
-                            onTap: () {
-                              if (_isUser) {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => BookingDashboardScreen(
-                                            userCode:
-                                                _apiService.userCode ?? '')));
-                              }
-                            },
+                  ),
+                  Stack(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chat_bubble_outline_rounded),
+                        onPressed: () {
+                          Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const ChatListScreen()))
+                              .then((_) => _fetchUnreadCount());
+                        },
+                      ),
+                      if (_totalUnreadCount > 0)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                                color: AppPalette.dangerRed,
+                                shape: BoxShape.circle),
+                            child: Text(
+                              '$_totalUnreadCount',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
 
-                        // 2. Unpaid / Invoices (Nav)
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 1,
-                          mainAxisCellCount: 1,
-                          child: _buildBentoCard(
-                            title: 'Invoices',
-                            value:
-                                CurrencyFormatter.formatIndianCurrencyCompact(
-                                    data?.totalUnpaidInvoiceAmount ?? 0),
-                            subtitle: 'Unpaid Amount',
-                            icon: Icons.description_outlined,
-                            color: AppPalette.dangerRed,
-                            isAlert: (data?.totalUnpaidInvoiceAmount ?? 0) > 0,
-                            delay: 150,
-                            onTap: () {
-                              if (_isUser) {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const InvoiceListScreen()));
-                              }
-                            },
-                          ),
+              // Main Content
+              SliverPadding(
+                padding: const EdgeInsets.all(AppLayout.gapL),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Quick Expense (Replaces old card)
+                      if (_isUser) ...[
+                        // Monthly Summary Card
+                        _buildMonthlySummaryCard(),
+
+                        // Quick Expense
+                        // Quick Expense
+                        _buildQuickAction(
+                          title: 'Quick Expense',
+                          subtitle: 'Add a new expense receipt',
+                          icon: Icons.add,
+                          color: AppPalette.neonCyan,
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const ExpensesScreen())),
                         ),
-
-                        // 3. Reports (Nav)
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 1,
-                          mainAxisCellCount: 1,
-                          child: _buildBentoCard(
-                            title: 'Reports',
-                            value: 'View',
-                            subtitle: 'Completed',
-                            icon: Icons.analytics_outlined,
-                            color: AppPalette.successGreen,
-                            delay: 200,
-                            onTap: () {
-                              if (_isUser) {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => ReportsDashboardScreen(
-                                            userCode:
-                                                _apiService.userCode ?? '')));
-                              }
-                            },
-                          ),
-                        ),
-
-                        // 3.5 Meter Readings (Nav)
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 1,
-                          mainAxisCellCount: 1,
-                          child: _buildBentoCard(
-                            title: 'Meter',
-                            value: 'Readings',
-                            subtitle: 'Track Usage',
-                            icon: Icons.speed,
-                            color: Colors.orangeAccent,
-                            delay: 250,
-                            onTap: () {
-                              if (_isUser) {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const MeterDashboardScreen()));
-                              }
-                            },
-                          ),
-                        ),
-
-                        // 4. Pending Reports (Nav)
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 1,
-                          mainAxisCellCount: 1,
-                          child: _buildBentoCard(
-                            title: 'Pending',
-                            value: 'Check',
-                            subtitle: 'Status',
-                            icon: Icons.pending_actions_outlined,
-                            color: AppPalette.warningOrange,
-                            delay: 250,
-                            onTap: () {
-                              if (_isUser) {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => PendingDashboardScreen(
-                                            userCode:
-                                                _apiService.userCode ?? '')));
-                              }
-                            },
-                          ),
-                        ),
-
-                        // 5. Expenses (Nav)
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 1,
-                          mainAxisCellCount: 1,
-                          child: _buildBentoCard(
-                            title: 'Expenses',
-                            value: 'Manage',
-                            subtitle: 'Records',
-                            icon: Icons.receipt_long_outlined,
-                            color: Colors.purpleAccent,
-                            delay: 300,
-                            onTap: () {
-                              if (_isUser) {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const ExpensesScreen()));
-                              }
-                            },
-                          ),
-                        ),
-
-                        // 6. Profile / Settings (Nav) - Placeholder for now or connect to Profile
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 1,
-                          mainAxisCellCount: 1,
-                          child: _buildBentoCard(
-                            title: 'Profile',
-                            value: 'Settings',
-                            subtitle: 'Account',
-                            icon: Icons.person_outline,
-                            color: Colors.blueGrey,
-                            delay: 350,
-                            onTap: () {
-                              // TODO: Navigate to Profile
-                            },
-                          ),
-                        ),
-
-                        // 7. Invoice Performance (Wide Chart)
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 2,
-                          mainAxisCellCount: 1.5, // Taller
-                          child: _buildChartCard(
-                            title: 'Invoice Performance',
-                            child: _buildBarChart(data),
-                            delay: 400,
-                          ),
-                        ),
-
-                        // 8. Revenue Source (Wide Pie)
-                        StaggeredGridTile.count(
-                          crossAxisCellCount: 2,
-                          mainAxisCellCount: 1.5,
-                          child: _buildChartCard(
-                            title: 'Revenue Source',
-                            child: _buildPieChart(data),
-                            delay: 450,
-                          ),
+                        const SizedBox(height: AppLayout.gapM), // Spacing
+                        // Quick Meter Reading
+                        // Quick Meter Reading
+                        _buildQuickAction(
+                          title: 'Quick Meter Reading',
+                          subtitle: 'Log a new meter entry',
+                          icon: Icons.speed,
+                          color: Colors.orangeAccent,
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const MeterDashboardScreen())),
                         ),
                       ],
-                    ),
 
-                    const SizedBox(height: 100), // Bottom padding
-                  ],
+                      const SizedBox(height: AppLayout.gapSection),
+
+                      Text('Overview', style: AppTypography.headlineMedium)
+                          .animate()
+                          .fadeIn(),
+
+                      const SizedBox(height: AppLayout.gapM),
+
+                      // Bento Grid
+                      StaggeredGrid.count(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: AppLayout.gapM,
+                        crossAxisSpacing: AppLayout.gapM,
+                        children: [
+                          // 1. Bookings (Nav)
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 1,
+                            mainAxisCellCount: 1,
+                            child: _buildBentoCard(
+                              title: 'Bookings',
+                              value: data?.totalBookings?.toString() ?? '0',
+                              subtitle: CurrencyFormatter.formatIndianCurrency(
+                                  data?.totalBookingAmount ?? 0),
+                              icon: Icons.calendar_today,
+                              color: AppPalette.electricBlue,
+                              delay: 100,
+                              onTap: () {
+                                if (_isUser) {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              BookingDashboardScreen(
+                                                  userCode:
+                                                      _apiService.userCode ??
+                                                          '')));
+                                }
+                              },
+                            ),
+                          ),
+
+                          // 2. Unpaid / Invoices (Nav)
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 1,
+                            mainAxisCellCount: 1,
+                            child: _buildBentoCard(
+                              title: 'Invoices',
+                              value:
+                                  CurrencyFormatter.formatIndianCurrencyCompact(
+                                      data?.totalUnpaidInvoiceAmount ?? 0),
+                              subtitle: 'Unpaid Amount',
+                              icon: Icons.description_outlined,
+                              color: AppPalette.dangerRed,
+                              isAlert:
+                                  (data?.totalUnpaidInvoiceAmount ?? 0) > 0,
+                              delay: 150,
+                              onTap: () {
+                                if (_isUser) {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const InvoiceListScreen()));
+                                }
+                              },
+                            ),
+                          ),
+
+                          // 3. Reports (Nav)
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 1,
+                            mainAxisCellCount: 1,
+                            child: _buildBentoCard(
+                              title: 'Reports',
+                              value: 'View',
+                              subtitle: 'Completed',
+                              icon: Icons.analytics_outlined,
+                              color: AppPalette.successGreen,
+                              delay: 200,
+                              onTap: () {
+                                if (_isUser) {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              ReportsDashboardScreen(
+                                                  userCode:
+                                                      _apiService.userCode ??
+                                                          '')));
+                                }
+                              },
+                            ),
+                          ),
+
+                          // 3.5 Meter Readings (Nav)
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 1,
+                            mainAxisCellCount: 1,
+                            child: _buildBentoCard(
+                              title: 'Meter',
+                              value: 'Readings',
+                              subtitle: 'Track Usage',
+                              icon: Icons.speed,
+                              color: Colors.orangeAccent,
+                              delay: 250,
+                              onTap: () {
+                                if (_isUser) {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const MeterDashboardScreen()));
+                                }
+                              },
+                            ),
+                          ),
+
+                          // 4. Pending Reports (Nav)
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 1,
+                            mainAxisCellCount: 1,
+                            child: _buildBentoCard(
+                              title: 'Pending',
+                              value: 'Check',
+                              subtitle: 'Status',
+                              icon: Icons.pending_actions_outlined,
+                              color: AppPalette.warningOrange,
+                              delay: 250,
+                              onTap: () {
+                                if (_isUser) {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              PendingDashboardScreen(
+                                                  userCode:
+                                                      _apiService.userCode ??
+                                                          '')));
+                                }
+                              },
+                            ),
+                          ),
+
+                          // 5. Expenses (Nav)
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 1,
+                            mainAxisCellCount: 1,
+                            child: _buildBentoCard(
+                              title: 'Expenses',
+                              value: 'Manage',
+                              subtitle: 'Records',
+                              icon: Icons.receipt_long_outlined,
+                              color: Colors.purpleAccent,
+                              delay: 300,
+                              onTap: () {
+                                if (_isUser) {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const ExpensesScreen()));
+                                }
+                              },
+                            ),
+                          ),
+
+                          // 6. Profile / Settings (Nav) - Placeholder for now or connect to Profile
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 1,
+                            mainAxisCellCount: 1,
+                            child: _buildBentoCard(
+                              title: 'Profile',
+                              value: 'Settings',
+                              subtitle: 'Account',
+                              icon: Icons.person_outline,
+                              color: Colors.blueGrey,
+                              delay: 350,
+                              onTap: () {
+                                if (_apiService.userCode != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ProfileScreen(
+                                          userCode: _apiService.userCode!),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content:
+                                              Text('User code not found')));
+                                }
+                              },
+                            ),
+                          ),
+
+                          // 7. Invoice Performance (Wide Chart)
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 2,
+                            mainAxisCellCount: 1.5, // Taller
+                            child: _buildChartCard(
+                              title: 'Invoice Performance',
+                              child: _buildBarChart(data),
+                              delay: 400,
+                            ),
+                          ),
+
+                          // 8. Revenue Source (Wide Pie)
+                          StaggeredGridTile.count(
+                            crossAxisCellCount: 2,
+                            mainAxisCellCount: 1.5,
+                            child: _buildChartCard(
+                              title: 'Revenue Source',
+                              child: _buildPieChart(data),
+                              delay: 450,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 100), // Bottom padding
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -451,15 +477,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // --- Data Fetching for Monthly Summary ---
   Map<String, double>? _monthlyStats;
   bool _loadingMonthlyStats = false;
+  int _summaryMonth = DateTime.now().month;
+  int _summaryYear = DateTime.now().year;
 
   Future<void> _fetchMonthlyStats() async {
     if (_apiService.userCode == null) return;
     if (!mounted) return;
 
     setState(() => _loadingMonthlyStats = true);
-    final now = DateTime.now();
-    final month = now.month;
-    final year = now.year;
+
+    final month = _summaryMonth;
+    final year = _summaryYear;
     final userCode = _apiService.userCode!;
 
     double totalBookings = 0;
@@ -467,22 +495,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     double totalExpenses = 0;
 
     try {
-      // 1. Fetch Bookings (Current Month)
-      // Note: Bookings API is paginated. For a truly accurate sum we might need to loop or set a high perPage.
-      // For now, we fetch 'flat' bookings with high perPage.
+      // 1. Fetch Bookings (Selected Month)
       final bookingResp = await _marketingService.getBookings(
         userCode: userCode,
         month: month,
         year: year,
-        perPage: 100, // Reasonable limit for dashboard summary
+        perPage: 100,
       );
-      // Sum parsed amounts
       for (var item in bookingResp.items) {
         if (item.amount != null) totalBookings += item.amount!;
       }
 
-      // 2. Fetch Meter Readings (Current Month)
-      final meterService = MeterService(); // Ideally inject or instantiate once
+      // 2. Fetch Meter Readings (Selected Month)
+      final meterService = MeterService();
       final meterResp = await meterService.getReadings(
         month: month,
         year: year,
@@ -494,22 +519,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
 
-      // 3. Fetch Expenses (Current Month)
+      // 3. Fetch Expenses (Selected Month)
       final expenseResp = await _marketingService.getExpenses(
         userCode: userCode,
         month: month,
         year: year,
-        perPage: 1, // Only need totals from meta/totals if available
+        perPage: 1,
       );
 
-      // ExpenseResponse usually returns totals in the response if implemented on backend
       if (expenseResp.totals != null) {
         totalExpenses = expenseResp.totals!.totalAmount;
-      } else {
-        // Fallback: if no totals object, we might need to sum items?
-        // But pagination exists. Assuming backend sends totals or we settle for page 1 sum for now.
-        // Actually expense_model.dart shows `totals` field presence.
-        // If generic check fails, we might just show 0 or handle logically.
       }
     } catch (e) {
       debugPrint('Error fetching monthly stats: $e');
@@ -527,19 +546,80 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _showMonthYearPicker() {
+    int tempMonth = _summaryMonth;
+    int tempYear = _summaryYear;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Theme.of(ctx).cardColor,
+          title: const Text('Select Month & Year'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                value: tempYear,
+                decoration: InputDecoration(
+                  labelText: 'Year',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                items: List.generate(5, (i) => DateTime.now().year - i)
+                    .map((y) =>
+                        DropdownMenuItem(value: y, child: Text(y.toString())))
+                    .toList(),
+                onChanged: (v) => tempYear = v!,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                value: tempMonth,
+                decoration: InputDecoration(
+                  labelText: 'Month',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                items: List.generate(12, (i) => i + 1)
+                    .map((m) => DropdownMenuItem(
+                        value: m,
+                        child: Text(DateFormat.MMM().format(DateTime(0, m)))))
+                    .toList(),
+                onChanged: (v) => tempMonth = v!,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _summaryMonth = tempMonth;
+                  _summaryYear = tempYear;
+                });
+                Navigator.pop(ctx);
+                _fetchMonthlyStats();
+              },
+              child: const Text('Apply'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // --- Components ---
 
   Widget _buildMonthlySummaryCard() {
-    if (_monthlyStats == null && _loadingMonthlyStats) {
-      return const Padding(
-        padding: EdgeInsets.only(bottom: AppLayout.gapM),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
+    // Show loading state differently or keep old data while loading
+    // but visually might want to show spinner if hard reload
 
-    // If stats are ready (or even if empty/failed and we show 0)
     final stats =
         _monthlyStats ?? {'bookings': 0.0, 'meter': 0.0, 'expenses': 0.0};
+    final dateDisplayed = DateTime(_summaryYear, _summaryMonth);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppLayout.gapM),
@@ -568,44 +648,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('This Month\'s Activity',
+                    Text(
+                        _loadingMonthlyStats
+                            ? 'Updating...'
+                            : 'Activity Summary',
                         style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 14)),
                     const SizedBox(height: 4),
-                    Text(DateFormat('MMMM yyyy').format(DateTime.now()),
+                    Text(DateFormat('MMMM yyyy').format(dateDisplayed),
                         style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.bold)),
                   ],
                 ),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
+                ScaleButton(
+                  onTap: _showMonthYearPicker,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child:
+                        const Icon(Icons.calendar_month, color: Colors.white),
                   ),
-                  child: const Icon(Icons.calendar_month, color: Colors.white),
                 )
               ],
             ),
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildSummaryItem(
-                    'Bookings',
-                    CurrencyFormatter.formatIndianCurrencyCompact(
-                        stats['bookings']!)),
-                _buildSummaryItem(
-                    'Meter (Km)', stats['meter']!.toStringAsFixed(1)),
-                _buildSummaryItem(
-                    'Exp',
-                    CurrencyFormatter.formatIndianCurrencyCompact(
-                        stats['expenses']!)),
-              ],
-            )
+            if (_loadingMonthlyStats && _monthlyStats == null)
+              const Center(
+                  child: CircularProgressIndicator(color: Colors.white))
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildSummaryItem(
+                      'Bookings',
+                      CurrencyFormatter.formatIndianCurrencyCompact(
+                          stats['bookings']!)),
+                  _buildSummaryItem(
+                      'Meter (Km)', stats['meter']!.toStringAsFixed(1)),
+                  _buildSummaryItem(
+                      'Exp',
+                      CurrencyFormatter.formatIndianCurrencyCompact(
+                          stats['expenses']!)),
+                ],
+              )
           ],
         ),
       ),

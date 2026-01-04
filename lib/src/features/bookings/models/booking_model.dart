@@ -132,6 +132,7 @@ class BookingGrouped {
   final List<ReportFile> reportFiles;
   final String? uploadLetterUrl;
   final String? invoiceUrl;
+  final String? jobOrderDate;
 
   BookingGrouped({
     required this.id,
@@ -142,6 +143,7 @@ class BookingGrouped {
     this.reportFiles = const [],
     this.uploadLetterUrl,
     this.invoiceUrl,
+    this.jobOrderDate,
   });
 
   factory BookingGrouped.fromJson(Map<String, dynamic> json) {
@@ -182,6 +184,7 @@ class BookingGrouped {
       reportFiles: reportList,
       uploadLetterUrl: json['upload_letter_url'],
       invoiceUrl: json['invoice_url'],
+      jobOrderDate: json['job_order_date'],
     );
   }
 }

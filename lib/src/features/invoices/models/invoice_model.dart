@@ -9,6 +9,7 @@ class Invoice {
   final List<BookingItem> bookingItems;
   final String? invoiceLetterUrl;
   final bool canGenerate;
+  final String? paymentStatus;
 
   Invoice({
     required this.id,
@@ -21,6 +22,7 @@ class Invoice {
     required this.bookingItems,
     this.invoiceLetterUrl,
     required this.canGenerate,
+    this.paymentStatus,
   });
 
   factory Invoice.fromJson(Map<String, dynamic> json) {
@@ -40,6 +42,7 @@ class Invoice {
           [],
       invoiceLetterUrl: json['invoice_letter_url'],
       canGenerate: json['can_generate'] ?? false,
+      paymentStatus: json['payment_status'],
     );
   }
 }

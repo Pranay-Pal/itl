@@ -8,6 +8,7 @@ import 'package:itl/src/config/app_layout.dart';
 import 'package:itl/src/config/app_palette.dart';
 import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/invoices/models/invoice_model.dart';
+import 'package:itl/src/features/bookings/models/booking_model.dart';
 import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/common/utils/file_viewer_service.dart';
@@ -19,23 +20,35 @@ class InvoiceListScreen extends StatefulWidget {
   State<InvoiceListScreen> createState() => _InvoiceListScreenState();
 }
 
-class _InvoiceListScreenState extends State<InvoiceListScreen> {
+class _InvoiceListScreenState extends State<InvoiceListScreen>
+    with SingleTickerProviderStateMixin {
   final MarketingService _marketingService = MarketingService();
-  final ScrollController _scrollController = ScrollController();
+  late TabController _tabController;
+  final ScrollController _generatedScrollController = ScrollController();
+  final ScrollController _pendingScrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
+  // Data
   List<Invoice> _invoices = [];
+  List<BookingGrouped> _pendingInvoices = [];
+
+  // Loading States
   bool _isLoading = false;
   bool _isMoreLoading = false;
-  int _currentPage = 1;
-  int _lastPage = 1;
+
+  // Pagination
+  int _pageGenerated = 1;
+  int _lastPageGenerated = 1;
+
+  int _pagePending = 1;
+  int _lastPagePending = 1;
 
   // Filters
   String _searchQuery = '';
   int? _selectedMonth;
   int? _selectedYear;
-  String? _selectedPaymentStatus;
-  String? _selectedGeneratedStatus;
+  String? _selectedPaymentStatus; // For Generated only
+  int? _selectedDepartment;
 
   // Debounce search
   DateTime? _lastTypingTime;
@@ -48,12 +61,12 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           'Month: ${DateFormat.MMM().format(DateTime(0, _selectedMonth!))}');
     }
     if (_selectedYear != null) filters.add('Year: $_selectedYear');
-    if (_selectedPaymentStatus != null) {
-      filters.add('Status: ${_selectedPaymentStatus?.toUpperCase()}');
+    if (_selectedDepartment != null) {
+      final depts = {1: 'General', 2: 'BIS', 3: 'NBCC', 4: 'Uttarakhand'};
+      filters.add('Dept: ${depts[_selectedDepartment] ?? 'Unknown'}');
     }
-    if (_selectedGeneratedStatus != null && _selectedGeneratedStatus != 'all') {
-      filters
-          .add(_selectedGeneratedStatus == '1' ? 'Generated' : 'Not Generated');
+    if (_tabController.index == 0 && _selectedPaymentStatus != null) {
+      filters.add('Status: ${_selectedPaymentStatus?.toUpperCase()}');
     }
     return filters;
   }
@@ -61,16 +74,33 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchInvoices();
-    _scrollController.addListener(_scrollListener);
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_handleTabChange);
+    _generatedScrollController.addListener(_scrollListener);
+    _pendingScrollController.addListener(_scrollListener);
     _searchController.addListener(_onSearchChanged);
+    _fetchData();
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _tabController.dispose();
+    _generatedScrollController.dispose();
+    _pendingScrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (!_tabController.indexIsChanging) {
+      // Re-fetch if list is empty or filters might apply differently
+      // Ideally we keep data but refreshing is safer
+      if ((_tabController.index == 0 && _invoices.isEmpty) ||
+          (_tabController.index == 1 && _pendingInvoices.isEmpty)) {
+        _fetchData();
+      }
+      setState(() {}); // Rebuild to update filters display
+    }
   }
 
   void _onSearchChanged() {
@@ -85,96 +115,160 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
         if (_searchQuery != _searchController.text) {
           setState(() {
             _searchQuery = _searchController.text;
-            _currentPage = 1;
+            _resetPagination();
             _lastTypingTime = null;
           });
-          _fetchInvoices();
+          _fetchData();
         }
       }
     });
   }
 
+  void _resetPagination() {
+    _pageGenerated = 1;
+    _pagePending = 1;
+    _invoices = [];
+    _pendingInvoices = [];
+  }
+
   void _scrollListener() {
-    if (_scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 200 &&
+    final controller = _tabController.index == 0
+        ? _generatedScrollController
+        : _pendingScrollController;
+    final lastPage =
+        _tabController.index == 0 ? _lastPageGenerated : _lastPagePending;
+    final currentPage =
+        _tabController.index == 0 ? _pageGenerated : _pagePending;
+
+    if (controller.position.pixels >=
+            controller.position.maxScrollExtent - 200 &&
         !_isMoreLoading &&
-        _currentPage < _lastPage) {
-      _loadMoreInvoices();
+        currentPage < lastPage) {
+      _loadMoreData();
     }
   }
 
-  Future<void> _fetchInvoices() async {
+  Future<void> _fetchData() async {
     if (_isLoading) return;
-    setState(() {
-      _isLoading = true;
-      if (_currentPage == 1) _invoices = [];
-    });
+    setState(() => _isLoading = true);
 
     try {
       final userCode = ApiService().userCode ?? '';
       if (userCode.isEmpty) throw Exception('User code not found');
 
-      final response = await _marketingService.getInvoices(
-        userCode: userCode,
-        page: 1, // Always fetch page 1 on active refresh/filter
-        search: _searchQuery,
-        month: _selectedMonth,
-        year: _selectedYear,
-        paymentStatus: _selectedPaymentStatus,
-        generatedStatus:
-            _selectedGeneratedStatus == 'all' ? null : _selectedGeneratedStatus,
-      );
-
-      if (mounted) {
-        setState(() {
-          _invoices = response.invoices;
-          _currentPage = response.currentPage;
-          _lastPage = response.lastPage;
-          _isLoading = false;
-        });
+      if (_tabController.index == 0) {
+        // Fetch Generated Invoices
+        final response = await _marketingService.getInvoices(
+          userCode: userCode,
+          page: 1,
+          search: _searchQuery,
+          month: _selectedMonth,
+          year: _selectedYear,
+          paymentStatus: _selectedPaymentStatus,
+          department: _selectedDepartment,
+          // generated_status implicit by endpoint choice logic?
+          // User asked for separation. invoices/list IS generated.
+          // And bookings/generate-invoice IS pending.
+        );
+        if (mounted) {
+          setState(() {
+            _invoices = response.invoices;
+            _pageGenerated = response.currentPage;
+            _lastPageGenerated = response.lastPage;
+          });
+        }
+      } else {
+        // Fetch Pending Invoices
+        final response = await _marketingService.getPendingInvoices(
+          userCode: userCode,
+          page: 1,
+          search: _searchQuery,
+          month: _selectedMonth,
+          year: _selectedYear,
+          department: _selectedDepartment,
+        );
+        if (mounted) {
+          setState(() {
+            _pendingInvoices = response.bookings;
+            _pagePending = response.currentPage;
+            _lastPagePending = response.lastPage;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading invoices: $e')),
+          SnackBar(content: Text('Error: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _loadMoreInvoices() async {
+  Future<void> _loadMoreData() async {
     if (_isMoreLoading) return;
     setState(() => _isMoreLoading = true);
 
     try {
       final userCode = ApiService().userCode ?? '';
-      final nextPage = _currentPage + 1;
-
-      final response = await _marketingService.getInvoices(
-        userCode: userCode,
-        page: nextPage,
-        search: _searchQuery,
-        month: _selectedMonth,
-        year: _selectedYear,
-        paymentStatus: _selectedPaymentStatus,
-        generatedStatus:
-            _selectedGeneratedStatus == 'all' ? null : _selectedGeneratedStatus,
-      );
-
-      if (mounted) {
-        setState(() {
-          _invoices.addAll(response.invoices);
-          _currentPage = response.currentPage;
-          _lastPage = response.lastPage;
-          _isMoreLoading = false;
-        });
+      if (_tabController.index == 0) {
+        final nextPage = _pageGenerated + 1;
+        final response = await _marketingService.getInvoices(
+          userCode: userCode,
+          page: nextPage,
+          search: _searchQuery,
+          month: _selectedMonth,
+          year: _selectedYear,
+          paymentStatus: _selectedPaymentStatus,
+          department: _selectedDepartment,
+        );
+        if (mounted) {
+          setState(() {
+            _invoices.addAll(response.invoices);
+            _pageGenerated = response.currentPage;
+            _lastPageGenerated = response.lastPage;
+          });
+        }
+      } else {
+        final nextPage = _pagePending + 1;
+        final response = await _marketingService.getPendingInvoices(
+          userCode: userCode,
+          page: nextPage,
+          search: _searchQuery,
+          month: _selectedMonth,
+          year: _selectedYear,
+          department: _selectedDepartment,
+        );
+        if (mounted) {
+          setState(() {
+            _pendingInvoices.addAll(response.bookings);
+            _pagePending = response.currentPage;
+            _lastPagePending = response.lastPage;
+          });
+        }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isMoreLoading = false);
-      }
+      // Handle error silent or snackbar
+    } finally {
+      if (mounted) setState(() => _isMoreLoading = false);
     }
+  }
+
+  Future<void> _onRefresh() async {
+    // Reset current tab data
+    if (_tabController.index == 0) {
+      setState(() {
+        _invoices = [];
+        _pageGenerated = 1;
+      });
+    } else {
+      setState(() {
+        _pendingInvoices = [];
+        _pagePending = 1;
+      });
+    }
+    await _fetchData();
   }
 
   void _clearFilters() {
@@ -184,10 +278,10 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       _selectedMonth = null;
       _selectedYear = null;
       _selectedPaymentStatus = null;
-      _selectedGeneratedStatus = null;
-      _currentPage = 1;
+      _selectedDepartment = null;
+      _resetPagination();
     });
-    _fetchInvoices();
+    _fetchData();
   }
 
   void _openFilterModal() {
@@ -203,29 +297,42 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           initialMonth: _selectedMonth,
           initialYear: _selectedYear,
           initialStatus: _selectedPaymentStatus,
-          initialGeneratedStatus: _selectedGeneratedStatus,
-          onApply: (month, year, status, generatedStatus) {
+          initialDepartment: _selectedDepartment,
+          showStatus: _tabController.index == 0,
+          onApply: (month, year, status, dept) {
             setState(() {
               _selectedMonth = month;
               _selectedYear = year;
               _selectedPaymentStatus = status;
-              _selectedGeneratedStatus = generatedStatus;
-              _currentPage = 1;
+              _selectedDepartment = dept;
+              _resetPagination();
             });
             Navigator.pop(context); // Close modal
-            _fetchInvoices();
+            _fetchData();
           },
         );
       },
     );
   }
 
-  Color _getStatusColor(String? status, bool canGenerate) {
-    if (canGenerate) return AppPalette.successGreen;
+  Color _getStatusColor(String? status) {
     if (status == null) return Colors.grey;
-    if (status.toLowerCase().contains('paid')) return AppPalette.successGreen;
-    if (status.toLowerCase().contains('pending')) return Colors.orange;
-    return Colors.grey;
+    switch (status.toLowerCase()) {
+      case 'paid':
+        return AppPalette.successGreen;
+      case 'unpaid':
+        return AppPalette.dangerRed;
+      case 'pending':
+        return AppPalette.warningOrange; // or Colors.orange
+      case 'partial':
+        return Colors.amber;
+      case 'settle':
+        return AppPalette.electricBlue;
+      case 'cancel':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
   }
 
   @override
@@ -250,137 +357,262 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
               flexibleSpace: ClipRRect(
                 child: Container(color: Colors.transparent),
               ),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: TabBar(
+                  controller: _tabController,
+                  labelStyle: AppTypography.labelLarge,
+                  unselectedLabelStyle: AppTypography.bodyMedium,
+                  indicatorColor: AppPalette.electricBlue,
+                  labelColor: AppPalette.electricBlue,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: const [
+                    Tab(text: 'Generated'),
+                    Tab(text: 'Pending'),
+                  ],
+                ),
+              ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  onPressed: () {
-                    setState(() {
-                      _currentPage = 1;
-                      _invoices = [];
-                    });
-                    _fetchInvoices();
-                  },
+                  onPressed: _onRefresh,
                 ),
               ],
             ),
           ],
-          body: CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: FilterIsland(
-                    onFilterTap: _openFilterModal,
-                    onClearTap: _clearFilters,
-                    activeFilters: _activeFilters,
-                  ),
-                ),
-              ),
-              if (_isLoading && _invoices.isEmpty)
-                const SliverFillRemaining(
-                    child: Center(child: CircularProgressIndicator())),
-              if (!_isLoading && _invoices.isEmpty)
-                const SliverFillRemaining(
-                    child: Center(child: Text('No invoices found'))),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      if (index == _invoices.length) {
-                        return _isMoreLoading
-                            ? const Center(child: CircularProgressIndicator())
-                            : const SizedBox(height: 60);
-                      }
-
-                      final item = _invoices[index];
-                      // Use canGenerate or status to determine pill color/text
-                      // The API response seems to have 'canGenerate' as boolean.
-                      // We also have 'invoiceLetterUrl' presence.
-                      final statusLabel = item.invoiceLetterUrl != null
-                          ? 'Generated'
-                          : 'Pending';
-                      final statusColor =
-                          _getStatusColor(null, item.invoiceLetterUrl != null);
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppLayout.gapS),
-                        child: DataListTile(
-                          title: item.invoiceNo.isNotEmpty
-                              ? item.invoiceNo
-                              : 'No Invoice #',
-                          subtitle: item.clientName ?? 'Unknown Client',
-                          statusPill: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: statusColor.withValues(alpha: 0.5)),
-                            ),
-                            child: Text(
-                              statusLabel.toUpperCase(),
-                              style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          compactRows: [
-                            InfoRow(
-                                icon: Icons.calendar_today,
-                                label: 'Date',
-                                value: item.letterDate != null
-                                    ? DateFormat('dd MMM yyyy')
-                                        .format(item.letterDate!)
-                                    : '-'),
-                            InfoRow(
-                                icon: Icons.attach_money,
-                                label: 'Amount',
-                                value:
-                                    '₹${item.totalAmount.toStringAsFixed(2)}'),
-                          ],
-                          expandedRows: [
-                            if (item.referenceNo != null &&
-                                item.referenceNo!.isNotEmpty)
-                              InfoRow(
-                                  icon: Icons.tag,
-                                  label: 'Ref',
-                                  value: item.referenceNo!),
-
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8.0),
-                              child: Divider(),
-                            ),
-
-                            // Booking Items List Removed as per request
-                          ],
-                          actions: [
-                            if (item.invoiceLetterUrl != null)
-                              OutlinedButton.icon(
-                                icon:
-                                    const Icon(Icons.picture_as_pdf, size: 14),
-                                label: const Text('View PDF'),
-                                onPressed: () => FileViewerService.viewFile(
-                                    context, item.invoiceLetterUrl!),
-                              ),
-                          ],
-                        ),
-                      )
-                          .animate()
-                          .fadeIn(duration: 50.ms)
-                          .slideY(begin: 0.1, end: 0);
-                    },
-                    childCount: _invoices.length + 1,
-                  ),
-                ),
-              ),
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildGeneratedList(),
+              _buildPendingList(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGeneratedList() {
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      child: CustomScrollView(
+        controller: _generatedScrollController,
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          _buildFilterSliver(),
+          if (_isLoading && _invoices.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator())),
+          if (!_isLoading && _invoices.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: Text('No generated invoices found'))),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (index == _invoices.length) {
+                    return _isMoreLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : const SizedBox(height: 60);
+                  }
+
+                  final item = _invoices[index];
+                  // Prioritize paymentStatus from API, fallback to logic based on URL
+                  final statusRaw = item.paymentStatus;
+                  final hasPdf = item.invoiceLetterUrl != null;
+
+                  String statusLabel;
+                  Color statusColor;
+
+                  if (statusRaw != null) {
+                    statusLabel = statusRaw;
+                    statusColor = _getStatusColor(statusRaw);
+                  } else {
+                    statusLabel = hasPdf ? 'Generated' : 'Pending';
+                    statusColor =
+                        hasPdf ? AppPalette.successGreen : Colors.orange;
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                    child: DataListTile(
+                      title: item.invoiceNo.isNotEmpty
+                          ? item.invoiceNo
+                          : 'Reference #${item.referenceNo ?? "N/A"}',
+                      subtitle: item.clientName ?? 'Unknown Client',
+                      statusPill: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          statusLabel.toUpperCase(),
+                          style: TextStyle(
+                              color: statusColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      compactRows: [
+                        InfoRow(
+                            icon: Icons.calendar_today,
+                            label: 'Date',
+                            value: item.letterDate != null
+                                ? DateFormat('dd MMM yyyy')
+                                    .format(item.letterDate!)
+                                : '-'),
+                        InfoRow(
+                            icon: Icons.attach_money,
+                            label: 'Amount',
+                            value: '₹${item.totalAmount.toStringAsFixed(2)}'),
+                      ],
+                      expandedRows: [
+                        if (item.referenceNo != null &&
+                            item.referenceNo!.isNotEmpty)
+                          InfoRow(
+                              icon: Icons.tag,
+                              label: 'Ref',
+                              value: item.referenceNo!),
+                      ],
+                      actions: [
+                        if (item.invoiceLetterUrl != null)
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.picture_as_pdf, size: 14),
+                            label: const Text('View PDF'),
+                            onPressed: () => FileViewerService.viewFile(
+                                context, item.invoiceLetterUrl!),
+                          ),
+                      ],
+                    ),
+                  )
+                      .animate()
+                      .fadeIn(duration: 50.ms)
+                      .slideY(begin: 0.1, end: 0);
+                },
+                childCount: _invoices.length + 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingList() {
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      child: CustomScrollView(
+        controller: _pendingScrollController,
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          _buildFilterSliver(),
+          if (_isLoading && _pendingInvoices.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator())),
+          if (!_isLoading && _pendingInvoices.isEmpty)
+            const SliverFillRemaining(
+                child: Center(child: Text('No pending invoices found'))),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (index == _pendingInvoices.length) {
+                    return _isMoreLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : const SizedBox(height: 60);
+                  }
+
+                  final item = _pendingInvoices[index];
+                  // These are bookings waiting for generation.
+                  // Mirrors 'generateInvoiceListApi'.
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                    child: DataListTile(
+                      title: item.referenceNo ?? 'No Ref',
+                      subtitle: item.clientName ?? 'Unknown Client',
+                      statusPill: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'PENDING',
+                          style: TextStyle(
+                              color: Colors.orange,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      compactRows: [
+                        InfoRow(
+                            icon: Icons.calendar_today,
+                            label: 'Job Date',
+                            value: item.jobOrderDate ?? '-'),
+                        InfoRow(
+                            icon: Icons.list_alt,
+                            label: 'Items',
+                            value: '${item.itemsCount ?? 0}'),
+                      ],
+                      expandedRows: [
+                        // Show items if needed
+                        ...item.items.map((subItem) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                  '${subItem.jobOrderNo}: ${subItem.sampleDescription} (₹${subItem.amount})',
+                                  style: AppTypography.bodySmall
+                                      .copyWith(color: Colors.grey)),
+                            ))
+                      ],
+                      actions: [
+                        // "Generate" button placeholder
+                        // User mentioned endpoint: GET .../generate-invoice returns list.
+                        // Existing UI uses 'superadmin.bookingInvoiceStatuses.generateInvoice'.
+                        // I will add a disabled button or active one if I had logic.
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.receipt_long, size: 14),
+                          label: const Text('Generate'),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'Invoice generation not implemented on mobile yet.')));
+                          },
+                        ),
+                      ],
+                    ),
+                  )
+                      .animate()
+                      .fadeIn(duration: 50.ms)
+                      .slideY(begin: 0.1, end: 0);
+                },
+                childCount: _pendingInvoices.length + 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterSliver() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: FilterIsland(
+          onFilterTap: _openFilterModal,
+          onClearTap: _clearFilters,
+          activeFilters: _activeFilters,
         ),
       ),
     );
@@ -391,15 +623,16 @@ class _InvoiceFilterModal extends StatefulWidget {
   final int? initialMonth;
   final int? initialYear;
   final String? initialStatus;
-  final String? initialGeneratedStatus;
-  final Function(int? month, int? year, String? status, String? generatedStatus)
-      onApply;
+  final int? initialDepartment;
+  final bool showStatus;
+  final Function(int? month, int? year, String? status, int? dept) onApply;
 
   const _InvoiceFilterModal({
     this.initialMonth,
     this.initialYear,
     this.initialStatus,
-    this.initialGeneratedStatus,
+    this.initialDepartment,
+    this.showStatus = true,
     required this.onApply,
   });
 
@@ -411,7 +644,7 @@ class _InvoiceFilterModalState extends State<_InvoiceFilterModal> {
   int? _month;
   int? _year;
   String? _status;
-  String? _generatedStatus;
+  int? _department;
 
   // Year list helper
   List<int> get _years => List.generate(5, (i) => DateTime.now().year - i);
@@ -422,7 +655,7 @@ class _InvoiceFilterModalState extends State<_InvoiceFilterModal> {
     _month = widget.initialMonth;
     _year = widget.initialYear;
     _status = widget.initialStatus;
-    _generatedStatus = widget.initialGeneratedStatus;
+    _department = widget.initialDepartment;
   }
 
   @override
@@ -448,6 +681,25 @@ class _InvoiceFilterModalState extends State<_InvoiceFilterModal> {
             ],
           ),
           const SizedBox(height: 20),
+
+          // Department Dropdown
+          DropdownButtonFormField<int?>(
+            initialValue: _department,
+            decoration: InputDecoration(
+              labelText: 'Department',
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('All')),
+              DropdownMenuItem(value: 1, child: Text('General')),
+              DropdownMenuItem(value: 2, child: Text('BIS')),
+              DropdownMenuItem(value: 3, child: Text('NBCC')),
+              DropdownMenuItem(value: 4, child: Text('UTTRAKHAND')),
+            ],
+            onChanged: (v) => setState(() => _department = v),
+          ),
+          const SizedBox(height: 16),
 
           // Year & Month Row
           Row(
@@ -492,20 +744,25 @@ class _InvoiceFilterModalState extends State<_InvoiceFilterModal> {
           ),
           const SizedBox(height: 16),
 
-          DropdownButtonFormField<String?>(
-            initialValue: _generatedStatus,
-            decoration: InputDecoration(
-              labelText: 'Generation Status',
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          if (widget.showStatus)
+            DropdownButtonFormField<String?>(
+              initialValue: _status,
+              decoration: InputDecoration(
+                labelText: 'Payment Status',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              items: const [
+                DropdownMenuItem(value: null, child: Text('All')),
+                DropdownMenuItem(value: 'paid', child: Text('Paid')),
+                DropdownMenuItem(value: 'unpaid', child: Text('Unpaid')),
+                DropdownMenuItem(value: 'cancel', child: Text('Cancel')),
+                DropdownMenuItem(value: 'partial', child: Text('Partial')),
+                DropdownMenuItem(value: 'settle', child: Text('Settle')),
+              ],
+              onChanged: (v) => setState(() => _status = v),
             ),
-            items: const [
-              DropdownMenuItem(value: 'all', child: Text('All')),
-              DropdownMenuItem(value: '1', child: Text('Generated')),
-              DropdownMenuItem(value: '0', child: Text('Not Generated')),
-            ],
-            onChanged: (v) => setState(() => _generatedStatus = v),
-          ),
+
           const SizedBox(height: 24),
 
           SizedBox(
@@ -518,7 +775,7 @@ class _InvoiceFilterModalState extends State<_InvoiceFilterModal> {
                     borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () {
-                widget.onApply(_month, _year, _status, _generatedStatus);
+                widget.onApply(_month, _year, _status, _department);
               },
               child: const Text('Apply Filters',
                   style: TextStyle(

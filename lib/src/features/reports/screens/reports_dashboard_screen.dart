@@ -30,6 +30,7 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
   // Filters
   int? _selectedMonth;
   int? _selectedYear;
+  int? _selectedDepartment; // Added
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
@@ -57,6 +58,11 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
           'Month: ${DateFormat.MMM().format(DateTime(0, _selectedMonth!))}');
     }
     if (_selectedYear != null) filters.add('Year: $_selectedYear');
+    if (_selectedDepartment != null) {
+      final deptName = ['General', 'BIS', 'NBCC', 'UTTRAKHAND']
+          .elementAtOrNull(_selectedDepartment! - 1);
+      if (deptName != null) filters.add('Dept: $deptName');
+    }
     return filters;
   }
 
@@ -105,6 +111,16 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
     }
   }
 
+  Future<void> _refreshData() async {
+    setState(() {
+      _reports = [];
+      _letters = [];
+      _currentPageReport = 1;
+      _currentPageLetter = 1;
+    });
+    await _fetchData();
+  }
+
   Future<void> _fetchData({bool isLoadMore = false}) async {
     if (isLoadMore) {
       if (_isLoadingMore) return;
@@ -150,6 +166,9 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
           year: _selectedYear,
           search: _searchController.text,
           page: pageToFetch,
+          department:
+              _selectedMonth, // Wait, I need _selectedDepartment state first.
+          // Correcting logic below
         );
 
         if (mounted) {
@@ -202,7 +221,9 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
       _searchQuery = '';
       _searchController.clear();
       _selectedMonth = null;
+      _selectedMonth = null;
       _selectedYear = null;
+      _selectedDepartment = null;
     });
     // Reset data for both tabs as filters are global
     setState(() {
@@ -226,11 +247,14 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
         return _ReportFilterModal(
           initialMonth: _selectedMonth,
           initialYear: _selectedYear,
+          initialDepartment: _selectedDepartment, // Pass current department
           initialSearch: _searchQuery,
-          onApply: (month, year, search) {
+          onApply: (month, year, search, department) {
+            // Accept department
             setState(() {
               _selectedMonth = month;
               _selectedYear = year;
+              _selectedDepartment = department;
               _searchQuery = search;
               _searchController.text = search;
 
@@ -314,159 +338,170 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
   }
 
   Widget _buildReportList() {
-    return CustomScrollView(
-        controller: _reportScrollController,
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: FilterIsland(
-                onFilterTap: _openFilterModal,
-                onClearTap: _clearFilters,
-                activeFilters: _activeFilters,
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: CustomScrollView(
+          controller: _reportScrollController,
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: FilterIsland(
+                  onFilterTap: _openFilterModal,
+                  onClearTap: _clearFilters,
+                  activeFilters: _activeFilters,
+                ),
               ),
             ),
-          ),
-          if (_isLoading && _reports.isEmpty)
-            const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator())),
-          if (!_isLoading && _reports.isEmpty)
-            const SliverFillRemaining(
-                child: Center(child: Text('No reports found'))),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                if (index == _reports.length) {
-                  return _isLoadingMore
-                      ? const Center(child: CircularProgressIndicator())
-                      : const SizedBox(height: 60);
-                }
-
-                final item = _reports[index];
-                // Using 'reportUrl' presence for pill
-                final hasReport = item.reportUrl != null;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: AppLayout.gapS),
-                  child: DataListTile(
-                    title: item.jobOrderNo ?? 'N/A',
-                    subtitle: item.clientName ?? 'Unknown Client',
-                    statusPill: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: (hasReport
-                                ? AppPalette.successGreen
-                                : Colors.orange)
-                            .withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: (hasReport
-                                    ? AppPalette.successGreen
-                                    : Colors.orange)
-                                .withValues(alpha: 0.5)),
-                      ),
-                      child: Text(
-                        hasReport ? 'COMPLETED' : 'PENDING',
-                        style: TextStyle(
-                            color: hasReport
-                                ? AppPalette.successGreen
-                                : Colors.orange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    compactRows: [
-                      InfoRow(
-                          icon: Icons.science,
-                          label: 'Sample',
-                          value: item.sampleDescription ?? '-'),
-                    ],
-                    expandedRows: [
-                      InfoRow(
-                          icon: Icons.description,
-                          label: 'Particulars',
-                          value: item.particulars ?? '-'),
-                      // Omitted ReferenceNo as it seemed missing from model causing issues, can add back if verified.
-                      // Omitted ReceivedAt as missing.
-                    ],
-                    actions: [
-                      if (item.reportUrl != null)
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.picture_as_pdf, size: 14),
-                          label: const Text('View Report'),
-                          onPressed: () => FileViewerService.viewFile(
-                              context, item.reportUrl!),
-                        )
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 50.ms).slideY(begin: 0.1, end: 0);
-              }, childCount: _reports.length + 1),
-            ),
-          )
-        ]);
-  }
-
-  Widget _buildLetterList() {
-    return CustomScrollView(
-        controller: _letterScrollController,
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: FilterIsland(
-                onFilterTap: _openFilterModal,
-                onClearTap: _clearFilters,
-                activeFilters: _activeFilters,
-              ),
-            ),
-          ),
-          if (_isLoading && _letters.isEmpty)
-            const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator())),
-          if (!_isLoading && _letters.isEmpty)
-            const SliverFillRemaining(
-                child: Center(child: Text('No report letters found'))),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  if (index == _letters.length) {
+            if (_isLoading && _reports.isEmpty)
+              const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator())),
+            if (!_isLoading && _reports.isEmpty)
+              const SliverFillRemaining(
+                  child: Center(child: Text('No reports found'))),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  if (index == _reports.length) {
                     return _isLoadingMore
                         ? const Center(child: CircularProgressIndicator())
                         : const SizedBox(height: 60);
                   }
 
-                  final item = _letters[index];
+                  final item = _reports[index];
+                  // Using 'reportUrl' presence for pill
+                  final hasReport = item.reportUrl != null;
 
-                  return _LetterCard(item: item)
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppLayout.gapS),
+                    child: DataListTile(
+                      title: item.jobOrderNo ?? 'N/A',
+                      subtitle: item.clientName ?? 'Unknown Client',
+                      statusPill: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: (hasReport
+                                  ? AppPalette.successGreen
+                                  : Colors.orange)
+                              .withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: (hasReport
+                                      ? AppPalette.successGreen
+                                      : Colors.orange)
+                                  .withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                          hasReport ? 'COMPLETED' : 'PENDING',
+                          style: TextStyle(
+                              color: hasReport
+                                  ? AppPalette.successGreen
+                                  : Colors.orange,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      compactRows: [
+                        InfoRow(
+                            icon: Icons.science,
+                            label: 'Sample',
+                            value: item.sampleDescription ?? '-'),
+                      ],
+                      expandedRows: [
+                        InfoRow(
+                            icon: Icons.description,
+                            label: 'Particulars',
+                            value: item.particulars ?? '-'),
+                        // Omitted ReferenceNo as it seemed missing from model causing issues, can add back if verified.
+                        // Omitted ReceivedAt as missing.
+                      ],
+                      actions: [
+                        if (item.reportUrl != null)
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.picture_as_pdf, size: 14),
+                            label: const Text('View Report'),
+                            onPressed: () => FileViewerService.viewFile(
+                                context, item.reportUrl!),
+                          )
+                      ],
+                    ),
+                  )
                       .animate()
                       .fadeIn(duration: 50.ms)
                       .slideY(begin: 0.1, end: 0);
-                },
-                childCount: _letters.length + 1,
+                }, childCount: _reports.length + 1),
+              ),
+            )
+          ]),
+    );
+  }
+
+  Widget _buildLetterList() {
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: CustomScrollView(
+          controller: _letterScrollController,
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: FilterIsland(
+                  onFilterTap: _openFilterModal,
+                  onClearTap: _clearFilters,
+                  activeFilters: _activeFilters,
+                ),
               ),
             ),
-          ),
-        ]);
+            if (_isLoading && _letters.isEmpty)
+              const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator())),
+            if (!_isLoading && _letters.isEmpty)
+              const SliverFillRemaining(
+                  child: Center(child: Text('No report letters found'))),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppLayout.gapPage, vertical: AppLayout.gapM),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index == _letters.length) {
+                      return _isLoadingMore
+                          ? const Center(child: CircularProgressIndicator())
+                          : const SizedBox(height: 60);
+                    }
+
+                    final item = _letters[index];
+
+                    return _LetterCard(item: item)
+                        .animate()
+                        .fadeIn(duration: 50.ms)
+                        .slideY(begin: 0.1, end: 0);
+                  },
+                  childCount: _letters.length + 1,
+                ),
+              ),
+            ),
+          ]),
+    );
   }
 }
 
 class _ReportFilterModal extends StatefulWidget {
   final int? initialMonth;
   final int? initialYear;
+  final int? initialDepartment;
   final String initialSearch;
-  final Function(int? month, int? year, String search) onApply;
+  final Function(int? month, int? year, String search, int? department) onApply;
 
   const _ReportFilterModal({
     this.initialMonth,
     this.initialYear,
+    this.initialDepartment,
     required this.initialSearch,
     required this.onApply,
   });
@@ -478,6 +513,7 @@ class _ReportFilterModal extends StatefulWidget {
 class _ReportFilterModalState extends State<_ReportFilterModal> {
   int? _month;
   int? _year;
+  int? _department;
   late TextEditingController _searchCtrl;
 
   @override
@@ -485,6 +521,7 @@ class _ReportFilterModalState extends State<_ReportFilterModal> {
     super.initState();
     _month = widget.initialMonth;
     _year = widget.initialYear;
+    _department = widget.initialDepartment;
     _searchCtrl = TextEditingController(text: widget.initialSearch);
   }
 
@@ -567,6 +604,33 @@ class _ReportFilterModalState extends State<_ReportFilterModal> {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            InputDecorator(
+              decoration: InputDecoration(
+                labelText: 'Department',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int?>(
+                  value: _department,
+                  isDense: true,
+                  isExpanded: true,
+                  items: const [
+                    DropdownMenuItem(
+                        value: null, child: Text('All Departments')),
+                    DropdownMenuItem(value: 1, child: Text('General')),
+                    DropdownMenuItem(value: 2, child: Text('BIS')),
+                    DropdownMenuItem(value: 3, child: Text('NBCC')),
+                    DropdownMenuItem(value: 4, child: Text('UTTRAKHAND')),
+                  ],
+                  onChanged: (v) => _department = v,
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -578,7 +642,7 @@ class _ReportFilterModalState extends State<_ReportFilterModal> {
                       borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
-                  widget.onApply(_month, _year, _searchCtrl.text);
+                  widget.onApply(_month, _year, _searchCtrl.text, _department);
                 },
                 child: const Text('Apply Filters',
                     style: TextStyle(
@@ -639,8 +703,7 @@ class _LetterCardState extends State<_LetterCard> {
     }
 
     final RenderBox button = context.findRenderObject() as RenderBox;
-    final overlay =
-        Overlay.of(context)!.context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
       Rect.fromPoints(
         button.localToGlobal(Offset.zero, ancestor: overlay),

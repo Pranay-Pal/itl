@@ -25,6 +25,41 @@
     "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/invoices/list?page=1&perPage=10"
   },
   {
+    "name": "invoices_pending_generation",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/bookings/generate-invoice?page=1&perPage=10"
+  },
+  {
+    "name": "invoices_filter_paid",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/invoices/list?page=1&perPage=10&payment_status=paid"
+  },
+  {
+    "name": "invoices_filter_unpaid",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/invoices/list?page=1&perPage=10&payment_status=unpaid"
+  },
+  {
+    "name": "invoices_filter_cancel",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/invoices/list?page=1&perPage=10&payment_status=cancel"
+  },
+  {
+    "name": "invoices_filter_partial",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/invoices/list?page=1&perPage=10&payment_status=partial"
+  },
+  {
+    "name": "invoices_filter_settle",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/invoices/list?page=1&perPage=10&payment_status=settle"
+  },
+  {
+    "name": "invoices_dept_1",
+    "method": "GET",
+    "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/invoices/list?page=1&perPage=10&department=1"
+  },
+  {
     "name": "expenses",
     "method": "GET",
     "url": "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/personal/expenses?page=1&perPage=10"

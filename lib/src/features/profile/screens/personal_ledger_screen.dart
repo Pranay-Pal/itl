@@ -71,85 +71,110 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> {
     final stats = _data!.stats;
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppLayout.gapPage),
-      physics: const BouncingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Total Summary Card
-          _buildSummaryCard(stats, currencyFormat),
-          const SizedBox(height: 24),
+    return RefreshIndicator(
+      onRefresh: _fetchProfile,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppLayout.gapPage),
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Total Summary Card
+            _buildSummaryCard(stats, currencyFormat),
+            const SizedBox(height: 24),
 
-          // Group 1: Bookings & Bills
-          Text('Bookings', style: AppTypography.headlineSmall),
-          const SizedBox(height: 12),
-          _buildGrid([
-            _StatItem('Total Bookings', stats.totalBookings.toString(),
-                Icons.book, Colors.blue),
-            _StatItem('Total Value',
-                currencyFormat.format(stats.totalBookingAmount), Icons.attach_money, Colors.blue),
-            _StatItem('Without Bill', stats.withoutBillBookings.toString(),
-                Icons.money_off, Colors.orange),
-            _StatItem('W/O Bill Value',
-                currencyFormat.format(stats.totalWithoutBillBookings), Icons.warning, Colors.orange),
-          ]),
-          const SizedBox(height: 24),
+            // Group 1: Bookings & Bills
+            Text('Bookings', style: AppTypography.headlineSmall),
+            const SizedBox(height: 12),
+            _buildGrid([
+              _StatItem('Total Bookings', stats.totalBookings.toString(),
+                  Icons.book, Colors.blue),
+              _StatItem(
+                  'Total Value',
+                  currencyFormat.format(stats.totalBookingAmount),
+                  Icons.attach_money,
+                  Colors.blue),
+              _StatItem('Without Bill', stats.withoutBillBookings.toString(),
+                  Icons.money_off, Colors.orange),
+              _StatItem(
+                  'W/O Bill Value',
+                  currencyFormat.format(stats.totalWithoutBillBookings),
+                  Icons.warning,
+                  Colors.orange),
+            ]),
+            const SizedBox(height: 24),
 
-          // Group 2: Invoices
-          Text('Invoices', style: AppTypography.headlineSmall),
-          const SizedBox(height: 12),
-          _buildGrid([
-            _StatItem('Not Generated', stats.notGeneratedInvoices.toString(),
-                Icons.pending_actions, Colors.red),
-            _StatItem('Pending Value',
-                currencyFormat.format(stats.totalNotGeneratedInvoicesAmount), Icons.access_time, Colors.red),
-            _StatItem('Partial Tax', stats.partialTaxInvoices.toString(),
-                Icons.pie_chart, Colors.purple),
-            _StatItem('Unpaid', stats.unpaidInvoices.toString(),
-                Icons.error_outline, Colors.red),
-          ]),
-          const SizedBox(height: 24),
+            // Group 2: Invoices
+            Text('Invoices', style: AppTypography.headlineSmall),
+            const SizedBox(height: 12),
+            _buildGrid([
+              _StatItem('Not Generated', stats.notGeneratedInvoices.toString(),
+                  Icons.pending_actions, Colors.red),
+              _StatItem(
+                  'Pending Value',
+                  currencyFormat.format(stats.totalNotGeneratedInvoicesAmount),
+                  Icons.access_time,
+                  Colors.red),
+              _StatItem('Partial Tax', stats.partialTaxInvoices.toString(),
+                  Icons.pie_chart, Colors.purple),
+              _StatItem('Unpaid', stats.unpaidInvoices.toString(),
+                  Icons.error_outline, Colors.red),
+            ]),
+            const SizedBox(height: 24),
 
-          // Group 3: Cash & Transactions
-          Text('Cash & Transactions', style: AppTypography.headlineSmall),
-          const SizedBox(height: 12),
-          _buildGrid([
-            _StatItem('Transactions', stats.transactions.toString(),
-                Icons.swap_horiz, Colors.green),
-            _StatItem('Trans. Value',
-                currencyFormat.format(stats.totalTransactionsAmount), Icons.account_balance_wallet, Colors.green),
-            _StatItem('Due Amount',
-                currencyFormat.format(stats.totalDueAmount), Icons.payments, Colors.deepOrange),
-            _StatItem('Settled',
-                currencyFormat.format(stats.totalSettledAmount), Icons.check_circle, Colors.teal),
-          ]),
-           const SizedBox(height: 24),
+            // Group 3: Cash & Transactions
+            Text('Cash & Transactions', style: AppTypography.headlineSmall),
+            const SizedBox(height: 12),
+            _buildGrid([
+              _StatItem('Transactions', stats.transactions.toString(),
+                  Icons.swap_horiz, Colors.green),
+              _StatItem(
+                  'Trans. Value',
+                  currencyFormat.format(stats.totalTransactionsAmount),
+                  Icons.account_balance_wallet,
+                  Colors.green),
+              _StatItem(
+                  'Due Amount',
+                  currencyFormat.format(stats.totalDueAmount),
+                  Icons.payments,
+                  Colors.deepOrange),
+              _StatItem(
+                  'Settled',
+                  currencyFormat.format(stats.totalSettledAmount),
+                  Icons.check_circle,
+                  Colors.teal),
+            ]),
+            const SizedBox(height: 24),
 
-          // Recent Transactions
-          Text('Recent Transactions', style: AppTypography.headlineSmall),
-          const SizedBox(height: 12),
-          ..._data!.recentTransactions.map((t) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                color: Theme.of(context).cardColor.withValues(alpha: 0.5),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppPalette.electricBlue.withValues(alpha: 0.1),
-                    child: Icon(Icons.receipt, color: AppPalette.electricBlue),
+            // Recent Transactions
+            Text('Recent Transactions', style: AppTypography.headlineSmall),
+            const SizedBox(height: 12),
+            ..._data!.recentTransactions.map((t) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  color: Theme.of(context).cardColor.withValues(alpha: 0.5),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          AppPalette.electricBlue.withValues(alpha: 0.1),
+                      child:
+                          Icon(Icons.receipt, color: AppPalette.electricBlue),
+                    ),
+                    title: Text(t.invoiceNo ?? 'Unknown Invoice'),
+                    subtitle: Text(t.transactionDate ?? ''),
+                    trailing: Text(
+                      currencyFormat.format(t.amountReceived),
+                      style: AppTypography.labelLarge
+                          .copyWith(color: AppPalette.successGreen),
+                    ),
                   ),
-                  title: Text(t.invoiceNo ?? 'Unknown Invoice'),
-                  subtitle: Text(t.transactionDate ?? ''),
-                  trailing: Text(
-                    currencyFormat.format(t.amountReceived),
-                    style: AppTypography.labelLarge.copyWith(color: AppPalette.successGreen),
-                  ),
-                ),
-              )),
-        ],
-      )
-          .animate()
-          .fadeIn(duration: 300.ms)
-          .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                )),
+          ],
+        )
+            .animate()
+            .fadeIn(duration: 300.ms)
+            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+      ),
     );
   }
 
@@ -206,7 +231,8 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildMiniParam('Clients', stats.allClients.toString()),
-              _buildMiniParam('Personal Exp', format.format(stats.totalPersonalExpensesAmount)),
+              _buildMiniParam('Personal Exp',
+                  format.format(stats.totalPersonalExpensesAmount)),
               _buildMiniParam('TDS', format.format(stats.tdsAmount)),
             ],
           )
@@ -220,7 +246,8 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
         Text(value,
             style: const TextStyle(
                 color: Colors.white, fontWeight: FontWeight.bold)),
@@ -258,7 +285,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Icon(item.icon, color: item.color, size: 20),
-             // could add a mini sparkline here
+              // could add a mini sparkline here
             ],
           ),
           Column(
@@ -270,7 +297,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> {
                   overflow: TextOverflow.ellipsis),
               Text(item.label,
                   style: AppTypography.bodySmall.copyWith(color: Colors.grey),
-                   maxLines: 1,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis),
             ],
           )

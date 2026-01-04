@@ -73,6 +73,7 @@ class MarketingService {
     int? month,
     int? year,
     int perPage = 25,
+    int? department,
   }) async {
     final queryParams = {
       'page': page.toString(),
@@ -80,7 +81,7 @@ class MarketingService {
       if (month != null) 'month': month.toString(),
       if (year != null) 'year': year.toString(),
       if (search != null && search.isNotEmpty) 'search': search,
-      // Docs mention 'marketing' or 'department' query params if needed, ignored for now.
+      if (department != null) 'department': department.toString(),
     };
 
     // "By Letter" uses /bookings/showbooking (Bookingsbyletter.txt) - Returns grouped bookings
@@ -154,6 +155,7 @@ class MarketingService {
     String? paymentStatus,
     int? clientId,
     String? generatedStatus,
+    int? department,
   }) async {
     final queryParams = {
       'page': page.toString(),
@@ -164,6 +166,7 @@ class MarketingService {
       if (paymentStatus != null) 'payment_status': paymentStatus,
       if (clientId != null) 'client_id': clientId.toString(),
       if (generatedStatus != null) 'generated_status': generatedStatus,
+      if (department != null) 'department': department.toString(),
     };
 
     final uri = Uri.parse(
@@ -193,6 +196,51 @@ class MarketingService {
     } else {
       throw Exception(
           'Failed to load invoices: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  Future<BookingGroupedResponse> getPendingInvoices({
+    required String userCode,
+    int page = 1,
+    int perPage = 25,
+    String? search,
+    int? month,
+    int? year,
+    int? department,
+    int? clientId,
+  }) async {
+    final queryParams = {
+      'page': page.toString(),
+      'perPage': perPage.toString(),
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (month != null) 'month': month.toString(),
+      if (year != null) 'year': year.toString(),
+      if (department != null) 'department': department.toString(),
+      if (clientId != null) 'client_id': clientId.toString(),
+    };
+
+    final uri = Uri.parse(
+            '${ApiService.baseUrl}/marketing-person/$userCode/bookings/generate-invoice')
+        .replace(queryParameters: queryParams);
+
+    debugPrint('Fetching pending invoices: $uri');
+
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final json = await _apiService.parseJson(response.body);
+      if (json['data'] != null) {
+        return BookingGroupedResponse.fromJson(json['data']);
+      }
+      return BookingGroupedResponse(
+          bookings: [],
+          total: 0,
+          perPage: perPage,
+          currentPage: 1,
+          lastPage: 1);
+    } else {
+      throw Exception(
+          'Failed to load pending invoices: ${response.statusCode} ${response.body}');
     }
   }
 
@@ -331,6 +379,7 @@ class MarketingService {
     int? month,
     int? year,
     int perPage = 25,
+    int? department,
   }) async {
     final queryParams = {
       'page': page.toString(),
@@ -338,7 +387,7 @@ class MarketingService {
       if (month != null) 'month': month.toString(),
       if (year != null) 'year': year.toString(),
       if (search != null && search.isNotEmpty) 'search': search,
-      if (search != null && search.isNotEmpty) 'department': '0',
+      if (department != null) 'department': department.toString(),
     };
 
     final uri = Uri.parse(

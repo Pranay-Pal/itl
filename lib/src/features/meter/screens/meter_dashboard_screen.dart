@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:itl/src/common/utils/file_viewer_service.dart';
 import 'package:itl/src/common/widgets/design_system/aurora_background.dart';
@@ -246,79 +247,126 @@ class _MeterDashboardScreenState extends State<MeterDashboardScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_readings.isEmpty) {
-      return const Center(child: Text('No meter readings found'));
-    }
-
-    return ListView.builder(
-      controller: _scrollController,
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: AppLayout.gapM),
-      itemCount: _readings.length + 1,
-      itemBuilder: (context, index) {
-        if (index == _readings.length) {
-          return _isMoreLoading
-              ? const Center(child: CircularProgressIndicator())
-              : const SizedBox(height: 60);
-        }
-
-        final item = _readings[index];
-        final isCompleted = item.endingReading != null;
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: DataListTile(
-            title: isCompleted ? 'Trip Completed' : 'Trip In Progress',
-            subtitle: item.startingAt ?? 'Unknown Date',
-            statusPill: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: (isCompleted ? AppPalette.successGreen : Colors.orange)
-                    .withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+    return RefreshIndicator(
+      onRefresh: _fetchReadings,
+      child: _readings.isEmpty
+          ? SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: const Center(child: Text('No meter readings found')),
               ),
-              child: Text(
-                isCompleted ? '${item.totalReading ?? 0} KM' : 'RUNNING',
-                style: TextStyle(
-                    color:
-                        isCompleted ? AppPalette.successGreen : Colors.orange,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10),
-              ),
+            )
+          : ListView.builder(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics()),
+              padding: const EdgeInsets.symmetric(horizontal: AppLayout.gapM),
+              itemCount: _readings.length + 1,
+              itemBuilder: (context, index) {
+                if (index == _readings.length) {
+                  return _isMoreLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : const SizedBox(height: 60);
+                }
+
+                final item = _readings[index];
+                final isCompleted = item.endingReading != null;
+
+                // Format Dates
+                String startStr = '-';
+                if (item.startingAt != null) {
+                  try {
+                    final dt = DateTime.parse(item.startingAt!);
+                    startStr = DateFormat('dd MMM, hh:mm a').format(dt);
+                  } catch (_) {
+                    startStr = item.startingAt!;
+                  }
+                }
+
+                String endStr = '-';
+                if (item.endingAt != null) {
+                  try {
+                    final dt = DateTime.parse(item.endingAt!);
+                    endStr = DateFormat('dd MMM, hh:mm a').format(dt);
+                  } catch (_) {
+                    endStr = item.endingAt!;
+                  }
+                }
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: DataListTile(
+                    title: isCompleted
+                        ? 'Trip #${item.id} (Done)'
+                        : 'Trip #${item.id} (Active)',
+                    subtitle: item.description ??
+                        (isCompleted ? 'Completed' : 'Running...'),
+                    statusPill: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (isCompleted
+                                ? AppPalette.successGreen
+                                : Colors.orange)
+                            .withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        isCompleted
+                            ? '${item.totalReading ?? 0} KM'
+                            : 'RUNNING',
+                        style: TextStyle(
+                            color: isCompleted
+                                ? AppPalette.successGreen
+                                : Colors.orange,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10),
+                      ),
+                    ),
+                    compactRows: [
+                      InfoRow(
+                          icon: Icons.play_arrow,
+                          label: 'Start',
+                          value:
+                              '${item.startingReading ?? '-'} km @ $startStr'),
+                      if (isCompleted)
+                        InfoRow(
+                            icon: Icons.stop,
+                            label: 'End',
+                            value: '${item.endingReading ?? '-'} km @ $endStr'),
+                    ],
+                    expandedRows: [
+                      if (!isCompleted)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text('Started: $startStr',
+                              style: AppTypography.bodySmall),
+                        ),
+                      if (item.description != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text('Note: ${item.description!}',
+                              style: AppTypography.bodySmall),
+                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          if (item.startingImage != null)
+                            _buildImageBtn(
+                                context, 'Start Photo', item.startingImage!),
+                          const SizedBox(width: 8),
+                          if (item.endingImage != null)
+                            _buildImageBtn(
+                                context, 'End Photo', item.endingImage!),
+                        ],
+                      )
+                    ],
+                    actions: [],
+                  ),
+                ).animate().fadeIn(duration: 50.ms).slideY(begin: 0.05, end: 0);
+              },
             ),
-            compactRows: [
-              InfoRow(
-                  icon: Icons.play_arrow,
-                  label: 'Start',
-                  value: '${item.startingReading ?? '-'}'),
-              if (isCompleted)
-                InfoRow(
-                    icon: Icons.stop,
-                    label: 'End',
-                    value: '${item.endingReading ?? '-'}'),
-            ],
-            expandedRows: [
-              if (item.description != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child:
-                      Text(item.description!, style: AppTypography.bodySmall),
-                ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  if (item.startingImage != null)
-                    _buildImageBtn(context, 'Start Img', item.startingImage!),
-                  const SizedBox(width: 8),
-                  if (item.endingImage != null)
-                    _buildImageBtn(context, 'End Img', item.endingImage!),
-                ],
-              )
-            ],
-            actions: [],
-          ),
-        ).animate().fadeIn(duration: 50.ms).slideY(begin: 0.05, end: 0);
-      },
     );
   }
 
