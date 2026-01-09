@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:itl/src/config/base_url.dart' as config;
+import 'package:itl/src/features/chat/models/chat_models.dart';
 
 class ApiService {
   // Make ApiService a singleton so token/state is shared across the app
@@ -348,22 +349,29 @@ class ApiService {
     return {'success': false, 'statusCode': status, 'body': parsedBody};
   }
 
-  Future<List<dynamic>> getChatGroups() async {
+  Future<List<ChatContact>> getChatContacts() async {
     final url = _userType == 'admin'
-        ? '$_baseUrl/admin/chat/groups'
-        : '$_baseUrl/chat/groups';
+        ? '$_baseUrl/admin/chat/contacts'
+        : '$_baseUrl/chat/contacts';
 
     final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is List) {
-        return data;
-      } else if (data['success'] == true && data['data'] is List) {
-        return data['data'];
+        return data.map((e) => ChatContact.fromJson(e)).toList();
+      } else if (data['data'] is List) {
+        return (data['data'] as List)
+            .map((e) => ChatContact.fromJson(e))
+            .toList();
       }
     }
     return [];
+  }
+
+  // Deprecated: use getChatContacts
+  Future<List<dynamic>> getChatGroups() async {
+    return await getChatContacts();
   }
 
   Future<Map<String, dynamic>?> createGroup(String name) async {
@@ -381,20 +389,36 @@ class ApiService {
     return null;
   }
 
-  Future<Map<String, dynamic>> getMessages(int groupId, {int page = 1}) async {
+  Future<List<ChatMessage>> getMessages(String contactId,
+      {int page = 1}) async {
+    // contactId formatting handled by caller or we can enforce here
     final url = _userType == 'admin'
-        ? '$_baseUrl/admin/chat/messages?group_id=$groupId&page=$page'
-        : '$_baseUrl/chat/messages?group_id=$groupId&page=$page';
+        ? '$_baseUrl/admin/chat/messages/$contactId?page=$page'
+        : '$_baseUrl/chat/messages/$contactId?page=$page';
+
+    // Note: If API query param for mark read is needed, append &mark_read=1
+    // e.g. '$_baseUrl/chat/messages/$contactId?page=$page&mark_read=1';
 
     final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        return data;
+      // Determine if we have {data: [...], ...} or just [...]
+      List<dynamic> listData = [];
+      if (data is List) {
+        listData = data;
+      } else if (data['data'] is List) {
+        listData = data['data'];
       }
+
+      // If fetched Messages is wrapped in a pagination object
+      // it might be data['data'] -> List
+
+      return listData
+          .map((e) => ChatMessage.fromJson(e, currentUserId: _userId))
+          .toList();
     }
-    return {};
+    return [];
   }
 
   Future<Map<String, dynamic>?> getSingleMessage(int messageId) async {
@@ -423,22 +447,32 @@ class ApiService {
     return [];
   }
 
-  Future<Map<String, dynamic>?> sendMessage(int groupId, String content,
-      {String type = 'text'}) async {
+  Future<ChatMessage?> sendMessage(String receiverId, String content,
+      {String? receiverType, int? replyToId}) async {
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages'
         : '$_baseUrl/chat/messages';
-    final body = {
-      'group_id': groupId,
-      'type': type,
+
+    // receiverType defaults to 'user' if not known, or caller should provide
+    // The API seems to require receiver_id and receiver_type
+    // If receiverId is like "user:1", we might not need type if API parses it,
+    // BUT docs say: "receiver_id": "user:36", "receiver_type": "user"
+
+    final Map<String, dynamic> body = {
+      'receiver_id': receiverId,
+      'receiver_type': receiverType ?? 'user', // Basic fallback
       'content': content,
     };
+    if (replyToId != null) {
+      body['reply_to'] = replyToId;
+    }
 
     final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     if (response.statusCode == 201) {
       final data = jsonDecode(response.body);
-      if (data['success'] == true) return data['data'];
+      // Return Message object
+      return ChatMessage.fromJson(data, currentUserId: _userId);
     }
     return null;
   }
@@ -461,8 +495,13 @@ class ApiService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> uploadFile(int groupId, String filePath,
-      {String type = 'file', int? replyToMessageId, String? content}) async {
+  Future<ChatMessage?> uploadChatFile(
+    String receiverId,
+    String receiverType,
+    String filePath, {
+    int? replyToId,
+    String? content,
+  }) async {
     await _loadToken();
     final url = _userType == 'admin'
         ? '$_baseUrl/admin/chat/messages'
@@ -471,57 +510,58 @@ class ApiService {
     Future<http.StreamedResponse> makeRequest() async {
       final request = http.MultipartRequest('POST', Uri.parse(url));
       request.headers['Authorization'] = 'Bearer $_token';
-      request.fields['group_id'] = groupId.toString();
-      request.fields['type'] = type;
+
+      request.fields['receiver_id'] = receiverId;
+      request.fields['receiver_type'] = receiverType;
+
       if (content != null) {
         request.fields['content'] = content;
       }
-
-      if (kDebugMode) {
-        debugPrint('--- API UPLOAD REQUEST ---');
-        debugPrint('URL: $url');
-        debugPrint('Type: $type');
-        debugPrint('Path: $filePath');
+      if (replyToId != null) {
+        request.fields['reply_to'] = replyToId.toString();
       }
 
-      final file = await http.MultipartFile.fromPath('file', filePath);
+      // Detect if audio or generic file
+      final isAudio = ['mp3', 'wav', 'm4a', 'aac', 'ogg']
+          .contains(filePath.split('.').last.toLowerCase());
+
+      final fieldName =
+          isAudio ? 'audio' : 'files[]'; // API docs say files[] for generic
+
+      final file = await http.MultipartFile.fromPath(fieldName, filePath);
       request.files.add(file);
-
-      if (replyToMessageId != null) {
-        request.fields['reply_to_message_id'] = replyToMessageId.toString();
-      }
 
       return await request.send();
     }
 
     await _ensureTokenValid();
-
     var response = await makeRequest();
 
-    // If unauthorized, try refreshing and retry once.
     if (response.statusCode == 401) {
-      debugPrint("Upload 401, refreshing token...");
       final didRefresh = await refreshToken();
-      if (didRefresh) {
-        response = await makeRequest();
-      }
+      if (didRefresh) response = await makeRequest();
     }
 
     if (response.statusCode == 201) {
       final responseBody = await response.stream.bytesToString();
-      if (kDebugMode) {
-        debugPrint('--- UPLOAD SUCCESS ---');
-        debugPrint('Body: $responseBody');
-      }
-      return jsonDecode(responseBody);
-    } else {
-      final body = await response.stream.bytesToString();
-      if (kDebugMode) {
-        debugPrint('--- UPLOAD FAILED ---');
-        debugPrint('Status: ${response.statusCode}');
-        debugPrint('Body: $body');
-      }
+      final data = jsonDecode(responseBody);
+      return ChatMessage.fromJson(data, currentUserId: _userId);
     }
+    return null;
+  }
+
+  // Deprecated shim
+  Future<Map<String, dynamic>?> uploadFile(int groupId, String filePath,
+      {String type = 'file', int? replyToMessageId, String? content}) async {
+    // Shim to new method: assume group
+    await uploadChatFile(
+      'group:$groupId',
+      'group',
+      filePath,
+      replyToId: replyToMessageId,
+      content: content,
+    );
+    // Return map to attempt backward compat or null
     return null;
   }
 
@@ -554,22 +594,27 @@ class ApiService {
     return false;
   }
 
-  Future<bool> reactToMessage(
-    int messageId,
-    String type,
-  ) async {
+  Future<bool> toggleReaction(int messageId, String emoji) async {
     final url = _userType == 'admin'
-        ? '$_baseUrl/admin/chat/messages/$messageId/reactions'
-        : '$_baseUrl/chat/messages/$messageId/reactions';
-    final body = {'type': type};
+        ? '$_baseUrl/admin/chat/messages/reaction'
+        : '$_baseUrl/chat/messages/reaction';
+    final body = {'message_id': messageId, 'emoji': emoji};
 
     final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['status'] == 'ok';
+      return data['acted'] == true;
     }
     return false;
+  }
+
+  // Deprecated OLD way
+  Future<bool> reactToMessage(
+    int messageId,
+    String type,
+  ) async {
+    return await toggleReaction(messageId, type);
   }
 
   Future<bool> forwardMessage(int messageId, List<int> targetGroupIds) async {
@@ -592,6 +637,46 @@ class ApiService {
     final response = await _sendHttpWithAuthAndRetry('POST', url, body: body);
 
     return response.statusCode == 200;
+  }
+
+  Future<bool> sendTyping(String contactId) async {
+    final url = _userType == 'admin'
+        ? '$_baseUrl/admin/chat/typing'
+        : '$_baseUrl/chat/typing';
+
+    // We need to send receiver_id and receiver_type
+    // If contactId is "user:123" or "group:456"
+    String receiverId = contactId;
+    String receiverType = 'user';
+
+    if (contactId.contains(':')) {
+      // e.g. group:123
+      final parts = contactId.split(':');
+      receiverType = parts[0];
+      // receiverId usually expects just the ID if type is separate, OR the full string?
+      // Based on sendMessage using receiver_id and receiver_type separately:
+      receiverId = contactId; // Or parts[1]?
+      // Docs: "receiver_id": "user:36", "receiver_type": "user"
+      // So receiver_id includes prefix if following that pattern?
+      // Wait, sendMessage uses:
+      // 'receiver_id': receiverId, (passed as arg)
+      // 'receiver_type': receiverType
+      // Let's assume receiverId is the full string "user:123" based on current usage.
+    }
+
+    final body = {
+      'receiver_id': receiverId,
+      'receiver_type': receiverType,
+    };
+
+    // Fire and forget, don't retry heavily
+    try {
+      final headers = _defaultHeaders(includeAuth: true);
+      http.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<Map<String, dynamic>?> createDirectMessage(int userId) async {
@@ -699,23 +784,35 @@ class ApiService {
     return false;
   }
 
-  Future<List<dynamic>> searchUsers(String q) async {
-    final encoded = Uri.encodeQueryComponent(q);
+  Future<List<ChatContact>> searchContacts(String query) async {
+    final encoded = Uri.encodeQueryComponent(query);
     final url = _userType == 'admin'
-        ? '$_baseUrl/admin/chat/users/search?q=$encoded'
-        : '$_baseUrl/chat/users/search?q=$encoded';
+        ? '$_baseUrl/admin/chat/search?q=$encoded'
+        : '$_baseUrl/chat/search?q=$encoded';
 
     final response = await _sendHttpWithAuthAndRetry('GET', url);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      if (data is Map<String, dynamic> &&
-          data['success'] == true &&
-          data['data'] is List) {
-        return data['data'];
+      // "Returns matches with same contacts shape"
+      if (data is List) {
+        return data.map((e) => ChatContact.fromJson(e)).toList();
+      } else if (data['data'] is List) {
+        return (data['data'] as List)
+            .map((e) => ChatContact.fromJson(e))
+            .toList();
       }
     }
     return [];
+  }
+
+  // Deprecated old search
+  Future<List<dynamic>> searchUsers(String q) async {
+    // Map to dynamics
+    final results = await searchContacts(q);
+    return results
+        .map((c) => {'id': c.id, 'name': c.name, 'avatar': c.avatar})
+        .toList();
   }
 
   Future<void> updateDeviceToken(String deviceToken) async {

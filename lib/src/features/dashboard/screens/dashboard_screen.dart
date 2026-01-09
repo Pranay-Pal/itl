@@ -14,6 +14,8 @@ import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/services/pusher_service.dart';
 import 'package:itl/src/features/chat/screens/chat_list_screen.dart';
 import 'package:itl/src/services/api_service.dart';
+import 'package:itl/src/services/notification_service.dart';
+
 import 'package:itl/src/features/profile/screens/profile_screen.dart';
 import 'package:itl/src/features/auth/screens/login_page.dart';
 import 'package:itl/src/features/bookings/bookings.dart';
@@ -56,6 +58,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _initializeApp() async {
     // Ensure ApiService is initialized (token/userType loaded)
     await _apiService.ensureInitialized();
+
+    // Process any pending notification tap (Deep Linking)
+    NotificationService().processInitialMessage();
 
     // Check if user is valid
     if (mounted) {
@@ -565,7 +570,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<int>(
-                value: tempYear,
+                initialValue: tempYear,
                 decoration: InputDecoration(
                   labelText: 'Year',
                   border: OutlineInputBorder(
@@ -579,7 +584,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<int>(
-                value: tempMonth,
+                initialValue: tempMonth,
                 decoration: InputDecoration(
                   labelText: 'Month',
                   border: OutlineInputBorder(

@@ -9,6 +9,7 @@ import 'package:itl/src/common/widgets/design_system/compact_data_tile.dart';
 
 import 'package:itl/src/common/widgets/design_system/glass_container.dart';
 import 'package:itl/src/config/app_layout.dart';
+import 'package:itl/src/config/base_url.dart' as config;
 import 'package:itl/src/config/app_palette.dart';
 import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/expenses/models/expense_model.dart';
@@ -559,19 +560,29 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   void _viewReceipt(String url, String title) {
-    final ext = url.split('.').last.split('?').first.toLowerCase();
+    // Handle relative URLs (common in Checked-In expenses)
+    String fullUrl = url;
+    if (!url.startsWith('http')) {
+      if (!url.startsWith('/')) {
+        fullUrl = '${config.baseUrl}/$url';
+      } else {
+        fullUrl = '${config.baseUrl}$url';
+      }
+    }
+
+    final ext = fullUrl.split('.').last.split('?').first.toLowerCase();
     if (ext == 'pdf') {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => PdfViewerScreen(
-            url: url,
+            url: fullUrl,
             title: title,
           ),
         ),
       );
     } else {
-      downloadAndOpen(url);
+      downloadAndOpen(fullUrl);
     }
   }
 

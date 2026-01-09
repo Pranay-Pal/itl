@@ -1,19 +1,24 @@
 import 'dart:async';
+// unused import removed
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 
 import 'package:icons_plus/icons_plus.dart';
 import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/features/bookings/bookings.dart';
 import 'package:itl/src/features/chat/screens/chat_screen.dart';
-import 'package:itl/src/config/constants.dart';
+import 'package:itl/src/features/chat/models/chat_models.dart';
 
 import 'package:itl/src/services/pusher_service.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 import 'package:itl/src/services/shared_intent_service.dart';
 import 'package:share_handler/share_handler.dart';
 import 'package:itl/src/services/theme_service.dart';
+import 'package:itl/src/common/widgets/design_system/aurora_background.dart';
+import 'package:itl/src/common/widgets/design_system/glass_container.dart';
+import 'package:itl/src/common/animations/scale_button.dart';
+import 'package:itl/src/config/typography.dart';
+import 'package:itl/src/config/app_palette.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -28,9 +33,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
   late StreamSubscription<PusherEvent> _eventSubscription;
   StreamSubscription? _sharedDataSubscription;
 
-  List<dynamic> _chatGroups = [];
-  List<dynamic> _searchResults = [];
+  List<ChatContact> _chatContacts = [];
+  List<ChatContact> _searchResults = [];
   bool _isLoading = true;
+  final Set<String> _typingUsers = {}; // ids of typing users (e.g. "user:1")
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   bool _isSearching = false;
@@ -81,7 +87,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (attachments.isEmpty || !mounted) return;
 
     // Ask user to select a target group
-    final int? targetGroupId = await showDialog<int>(
+    final String? targetContactId = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -90,12 +96,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
             width: double.maxFinite,
             child: ListView.builder(
               shrinkWrap: true,
-              itemCount: _chatGroups.length,
+              itemCount: _chatContacts.length,
               itemBuilder: (context, index) {
-                final g = _chatGroups[index];
+                final g = _chatContacts[index];
                 return ListTile(
-                  title: Text(g['name'] ?? 'Group'),
-                  onTap: () => Navigator.of(context).pop(g['id'] as int?),
+                  title: Text(g.name),
+                  onTap: () => Navigator.of(context).pop(g.id),
                 );
               },
             ),
@@ -110,7 +116,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       },
     );
 
-    if (targetGroupId == null || !mounted) return;
+    if (targetContactId == null || !mounted) return;
 
     // Show progress dialog
     showDialog(
@@ -137,9 +143,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
     for (final f in attachments) {
       final path = f.path;
       if (path.isEmpty) continue;
-      final type = _mapSharedType(f, path);
+      // final type = _mapSharedType(f, path);
       try {
-        await _apiService.uploadFile(targetGroupId, path, type: type);
+        // Assume group for now OR parse ID
+        String type = 'user';
+        if (targetContactId.startsWith('group:')) type = 'group';
+
+        await _apiService.uploadChatFile(targetContactId, type, path);
       } catch (_) {}
     }
 
@@ -147,92 +157,99 @@ class _ChatListScreenState extends State<ChatListScreen> {
     Navigator.of(context).pop(); // close progress dialog
 
     // Navigate to the target chat
-    final group = _chatGroups.firstWhere(
-      (g) => g['id'] == targetGroupId,
-      orElse: () => {'id': targetGroupId, 'name': 'Chat'},
+    final contact = _chatContacts.firstWhere(
+      (g) => g.id == targetContactId,
+      orElse: () => ChatContact(
+        id: targetContactId,
+        originalId: 0,
+        name: 'Chat',
+        type: 'user',
+      ),
     );
     if (!mounted) return;
     Navigator.of(context)
         .push(
           MaterialPageRoute(
             builder: (context) => ChatScreen(
-              groupId: group['id'],
-              groupName: group['name'] ?? 'Chat',
+              contactId: contact.id,
+              contactName: contact.name,
+              contactType: contact.type,
             ),
           ),
         )
         .then((_) => _fetchData());
   }
 
-  String _mapSharedType(SharedAttachment f, String path) {
-    final t = f.type.toString().toLowerCase();
-    if (t.contains('image')) return 'image';
-    final ext = path.split('.').last.toLowerCase();
-    if (ext == 'pdf') return 'pdf';
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) return 'image';
-    if (['mp3', 'wav', 'm4a', 'aac', 'ogg'].contains(ext)) return 'voice';
-    return 'file';
-  }
-
   void _subscribeToPusherEvents() {
-    _pusherService.subscribeToChannel('chat');
+    _pusherService.subscribeToChannel('chat'); // Public/Global channel if any?
+    // Actually per-user private channel is better, but stick to existing pattern or updates
+    // For now, re-fetch on generic events or specific user events
+
     _eventSubscription = _pusherService.eventStream.listen((event) {
-      if (event.channelName == 'chat' &&
-          event.eventName == 'ChatMessageBroadcast') {
-        final data = jsonDecode(event.data);
-        final message = data['message'];
-
-        if (message != null && mounted) {
-          final groupId = message['group_id'];
-          final index = _chatGroups.indexWhere((g) => g['id'] == groupId);
-
-          if (index != -1) {
-            setState(() {
-              final group = _chatGroups[index];
-              group['latest'] = {
-                'content': message['content'],
-                'created_at': message['created_at'],
-                'sender_name': message['sender_name'],
-              };
-              // Increment unread only if message isn't from current user
-              final currentUserId = _apiService.currentUserId;
-              final msgUserId = message['user_id'] ?? message['user']?['id'];
-              final isMine =
-                  currentUserId != null && msgUserId == currentUserId;
-              if (!isMine) {
-                final prev = group['unread'];
-                int current = 0;
-                if (prev is int) current = prev;
-                if (prev is String) current = int.tryParse(prev) ?? 0;
-                if (prev is double) current = prev.round();
-                group['unread'] = current + 1;
-              }
-
-              // Move the updated chat to the top
-              final updatedGroup = _chatGroups.removeAt(index);
-              _chatGroups.insert(0, updatedGroup);
-            });
-          }
-        }
+      // Logic to update list dynamically
+      if (['ChatMessageSent', 'ChatMessageBroadcast']
+          .contains(event.eventName)) {
+        // Optimization: parse and update local list instead of full fetch
+        _fetchData();
+      } else if (event.eventName == 'ChatTyping') {
+        _handleTypingEvent(event.data);
       }
     });
+  }
+
+  void _handleTypingEvent(String dataVal) {
+    try {
+      final data = jsonDecode(dataVal);
+      final senderId = data['sender_id'];
+      final type = data['receiver_type'];
+      final recId = data['receiver_id'];
+
+      // If I am typing, ignore? No, list might show "You are typing" which is weird. Ignored.
+      // But we don't know my ID easily here unless cached. Assuming event stream might echo.
+
+      String? targetContactId;
+
+      if (type == 'group') {
+        targetContactId = 'group:$recId';
+      } else if (senderId != null) {
+        // DM: The person typing is the contact we want to update
+        targetContactId = 'user:$senderId';
+      }
+
+      if (targetContactId != null) {
+        if (mounted) {
+          setState(() {
+            _typingUsers.add(targetContactId!);
+          });
+        }
+
+        // Clear after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _typingUsers.remove(targetContactId);
+            });
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error handling typing event: $e');
+    }
   }
 
   Future<void> _fetchData() async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    // Don't set loading to true on refresh to avoid flicker, only on initial load if needed
+    // setState(() => _isLoading = true);
 
     try {
-      final groups = await _apiService.getChatGroups();
+      final contacts = await _apiService.getChatContacts();
       if (!mounted) return;
       setState(() {
-        _chatGroups = groups;
+        _chatContacts = contacts;
         _isLoading = false;
       });
-      await _refreshUnreadCounts();
-      _fetchLatestMessagesForGroups();
+      // _refreshUnreadCounts(); // integrated in getChatContacts now
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -241,67 +258,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
-  Future<void> _refreshUnreadCounts() async {
-    try {
-      debugPrint("Fetching unread counts...");
-      final data = await _apiService.getUnreadCounts();
-      if (!mounted) return;
-      if (data == null || data['data'] == null) {
-        debugPrint("Unread counts data is null");
-        return;
-      }
-      // API returns a Map of ID -> Count
-      final unreadMap = data['data'];
-      if (unreadMap is! Map) {
-        debugPrint("Unread data is not a Map: $unreadMap");
-        return;
-      }
-
-      setState(() {
-        for (var i = 0; i < _chatGroups.length; i++) {
-          final g = _chatGroups[i] as Map;
-          final id = g['id'];
-          final idStr = id.toString();
-
-          if (unreadMap.containsKey(idStr)) {
-            final u = unreadMap[idStr];
-            int unread = 0;
-            if (u is int) unread = u;
-            if (u is String) unread = int.tryParse(u) ?? 0;
-            if (u is double) unread = u.round(); // cast double to int if needed
-            g['unread'] = unread;
-          }
-        }
-      });
-    } catch (e) {
-      debugPrint("Error refreshing unread counts: $e");
-    }
-  }
-
-  Future<void> _fetchLatestMessagesForGroups() async {
-    for (var i = 0; i < _chatGroups.length; i++) {
-      final g = _chatGroups[i] as Map;
-      final groupId = g['id'];
-      if (groupId is int) {
-        try {
-          final response = await _apiService.getMessages(groupId, page: 1);
-          if (response['data'] is List &&
-              (response['data'] as List).isNotEmpty) {
-            final latest = (response['data'] as List).first;
-            if (mounted) {
-              setState(() {
-                g['latest'] = latest;
-              });
-              debugPrint(
-                  "Fetched latest msg for $groupId: ${latest['content']}");
-            }
-          }
-        } catch (e) {
-          debugPrint("Failed to fetch latest msg for $groupId: $e");
-        }
-      }
-    }
-  }
+  // _refreshUnreadCounts and _fetchLatestMessagesForGroups removed as API does this efficiently now
 
   void _showCreateGroupOrUserDialog() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -426,130 +383,140 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Determine status bar brightness based on theme
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      // Use standard AppBar for WhatsApp feel
-      appBar: AppBar(
-        flexibleSpace: isDark
-            ? null
-            : Container(
-                decoration: BoxDecoration(gradient: kBlueGradient),
-              ),
-        backgroundColor: isDark ? Theme.of(context).primaryColor : null,
-        automaticallyImplyLeading: false,
-        title: Text(
-          'Chats',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 22, // Slightly larger for emphasis
-            color: isDark ? Colors.grey[400] : Colors.white,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.table_chart,
-                color: isDark ? Colors.grey[400] : Colors.white),
-            tooltip: 'Bookings',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => BookingDashboardScreen(
-                      userCode: _apiService.userCode ?? ''),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode : Icons.dark_mode,
-              color: isDark ? Colors.grey[400] : Colors.white,
-            ),
-            onPressed: () {
-              ThemeService().toggleTheme();
-            },
-            tooltip: 'Toggle Theme',
-          ),
-          IconButton(
-            icon: Icon(Icons.home,
-                color: isDark ? Colors.grey[400] : Colors.white),
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              }
-            },
-            tooltip: 'Back to Home',
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1F2C34) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocus,
-              style: TextStyle(color: isDark ? Colors.white : Colors.black),
-              decoration: InputDecoration(
-                icon: Icon(Icons.search,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                hintText: 'Search...',
-                hintStyle: TextStyle(
-                    color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                border: InputBorder.none,
-              ),
-              onChanged: (val) {
-                setState(() {
-                  _isSearching = val.isNotEmpty;
-                });
-                _onSearchChanged(val);
-              },
-            ),
-          ),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: kPrimaryBlue,
-        onPressed: _showCreateGroupOrUserDialog,
-        child: const Icon(Icons.message, color: Colors.white),
-      ),
-      body: SafeArea(
+      extendBodyBehindAppBar: true,
+      body: AuroraBackground(
         child: Column(
           children: [
-            // Filter Pills
+            // Custom Glass Header (Replaces AppBar)
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Messages',
+                        style: AppTypography.displaySmall
+                            .copyWith(color: Colors.white, fontSize: 28)),
+                    Row(
+                      children: [
+                        _buildHeaderIcon(Icons.table_chart, 'Bookings', () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BookingDashboardScreen(
+                                  userCode: _apiService.userCode ?? ''),
+                            ),
+                          );
+                        }),
+                        const SizedBox(width: 8),
+                        _buildHeaderIcon(
+                            isDark ? Icons.light_mode : Icons.dark_mode,
+                            'Theme', () {
+                          ThemeService().toggleTheme();
+                        }),
+                        const SizedBox(width: 8),
+                        _buildHeaderIcon(Icons.home, 'Home', () {
+                          if (Navigator.canPop(context)) Navigator.pop(context);
+                        }),
+                      ],
+                    )
+                  ],
+                ),
+              ),
+            ),
+
+            // 2. Search Bar (Glass)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: GlassContainer(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                height: 50,
+                child: Row(
+                  children: [
+                    Icon(Icons.search,
+                        color: Colors.white.withValues(alpha: 0.5)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocus,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          hintText: 'Search conversations...',
+                          hintStyle: TextStyle(color: Colors.white54),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        onChanged: (val) {
+                          setState(() => _isSearching = val.isNotEmpty);
+                          _onSearchChanged(val);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 3. Filter Chips (Neon Style)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  _buildFilterChip('All', !_showUnreadOnly, () {
+                  _buildNeonFilterChip('All', !_showUnreadOnly, () {
                     setState(() => _showUnreadOnly = false);
                   }),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Unread', _showUnreadOnly, () {
+                  const SizedBox(width: 12),
+                  _buildNeonFilterChip('Unread', _showUnreadOnly, () {
                     setState(() => _showUnreadOnly = true);
                   }),
                 ],
               ),
             ),
-            const Divider(height: 1),
 
-            // Content
+            // 4. Content List
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _fetchData,
+                color: AppPalette.neonCyan,
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                            color: AppPalette.neonCyan))
                     : _buildListContent(),
               ),
             ),
           ],
+        ),
+      ),
+      floatingActionButton: ScaleButton(
+        onTap: _showCreateGroupOrUserDialog,
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppPalette.electricBlue, AppPalette.neonCyan],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppPalette.neonCyan.withValues(alpha: 0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              )
+            ],
+          ),
+          child: const Icon(Icons.edit_square, color: Colors.white),
         ),
       ),
     );
@@ -557,19 +524,49 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   // Removed _buildCustomHeader as we rely on standard AppBar now
 
-  Widget _buildFilterChip(String label, bool isSelected, VoidCallback onTap) {
-    return GestureDetector(
+  Widget _buildHeaderIcon(IconData icon, String tooltip, VoidCallback onTap) {
+    return ScaleButton(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE7FCE3) : Colors.grey.shade200,
+          color: Colors.white.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildNeonFilterChip(
+      String label, bool isSelected, VoidCallback onTap) {
+    return ScaleButton(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppPalette.neonCyan.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.05),
+          border: Border.all(
+            color: isSelected
+                ? AppPalette.neonCyan
+                : Colors.white.withValues(alpha: 0.1),
+          ),
           borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                      color: AppPalette.neonCyan.withValues(alpha: 0.2),
+                      blurRadius: 8)
+                ]
+              : null,
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? const Color(0xFF008069) : Colors.grey.shade700,
+            color: isSelected ? AppPalette.neonCyan : Colors.white70,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -580,208 +577,230 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget _buildListContent() {
     if (_isSearching) {
       final query = _searchController.text.toLowerCase().trim();
-
-      // 1. Local matches from existing chats
-      final localMatches = _chatGroups.where((g) {
-        final name = (g['name'] ?? '').toString().toLowerCase();
+      final localMatches = _chatContacts.where((g) {
+        final name = (g.name).toLowerCase();
         return name.contains(query);
       }).toList();
 
-      // 2. API results (exclude those we already have chats with)
-
-      // Filter out API results that are already in local matches (optional, but good UX)
-      // Usually API returns USERS, local are GROUPS.
-      // We'll just show both sections for clarity.
-
       if (localMatches.isEmpty && _searchResults.isEmpty) {
-        return const Center(child: Text("No users found"));
+        return Center(
+          child: Text("No conversations found",
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
+        );
       }
 
       return ListView(
-        padding: const EdgeInsets.only(bottom: 80),
+        padding: const EdgeInsets.only(bottom: 80, top: 0),
         children: [
           if (localMatches.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text("Chats",
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.grey)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text("RECENT",
+                  style: AppTypography.labelSmall.copyWith(
+                      color: AppPalette.neonCyan, letterSpacing: 1.5)),
             ),
             ...localMatches.map((g) => _buildChatItem(g)),
           ],
           if (_searchResults.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text("Global Search",
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.grey)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text("GLOBAL SEARCH",
+                  style: AppTypography.labelSmall.copyWith(
+                      color: AppPalette.neonCyan, letterSpacing: 1.5)),
             ),
-            ..._searchResults.map((u) => _buildUserItem(u)),
+            ..._searchResults.map((u) => _buildChatItem(u)),
           ],
         ],
       );
     }
 
-    // Standard Filter (All / Unread)
-    List<dynamic> displayGroups = _chatGroups;
+    List<ChatContact> displayGroups = _chatContacts;
     if (_showUnreadOnly) {
-      displayGroups = _chatGroups.where((g) => (g['unread'] ?? 0) > 0).toList();
+      displayGroups = _chatContacts.where((g) => g.unreadCount > 0).toList();
     }
 
     if (displayGroups.isEmpty) {
-      if (_showUnreadOnly) {
-        return const Center(
-            child:
-                Text("No unread chats", style: TextStyle(color: Colors.grey)));
-      }
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(EvaIcons.message_circle_outline,
-                size: 60, color: Colors.grey.shade300),
-            const SizedBox(height: 10),
-            const Text("No chats yet", style: TextStyle(color: Colors.grey)),
+                size: 60, color: Colors.white.withValues(alpha: 0.2)),
+            const SizedBox(height: 16),
+            Text("No conversations yet",
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
           ],
         ),
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.only(top: 0, bottom: 80),
+      padding: const EdgeInsets.only(top: 8, bottom: 80),
       itemCount: displayGroups.length,
-      separatorBuilder: (context, index) =>
-          const Divider(height: 1, indent: 80),
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         return _buildChatItem(displayGroups[index]);
       },
     );
   }
 
-  Widget _buildChatItem(dynamic group) {
-    final name = group['name'] ?? 'Group';
-    final id = group['id'] ?? 0;
-    final unread = (group['unread'] ?? 0);
+  Widget _buildChatItem(ChatContact contact) {
+    final name = contact.name;
+    final id = contact.id;
+    final unread = contact.unreadCount;
 
     ImageProvider avatar;
-    if (group['avatar'] != null &&
-        group['avatar'] != 'https://via.placeholder.com/150') {
-      avatar = NetworkImage(group['avatar']);
+    if (contact.avatar != null &&
+        contact.avatar != 'https://via.placeholder.com/150') {
+      avatar = NetworkImage(contact.avatar!);
     } else {
       avatar = const AssetImage('assets/images/grp.png');
     }
 
-    final latestMessage = group['latest'];
+    final latestMessage = contact.lastMessage;
     String subtitle = 'No messages';
+    bool isTyping = _typingUsers.contains(id); // Hooked up to state
+    Color subtitleColor = Colors.white54;
+
     if (latestMessage != null) {
-      final sender = latestMessage['sender_name'] ?? '';
-      final content = latestMessage['content'] ?? '';
-      subtitle = sender.isNotEmpty ? '$sender: $content' : content;
-      if (subtitle.trim().isEmpty) {
-        subtitle = '[Media]';
+      final sender = latestMessage.senderName;
+      final content = latestMessage.content ?? '';
+
+      // Smart subtitle logic
+      if (latestMessage.type == 'file') {
+        subtitle = '📎 Attachment';
+      } else if (latestMessage.type == 'image') {
+        subtitle = '📷 Image';
+      } else if (latestMessage.type == 'voice') {
+        subtitle = '🎤 Voice Note';
+      } else {
+        subtitle = content;
+      }
+
+      if (sender == 'You') {
+        subtitle = 'You: $subtitle';
       }
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : Colors.black87;
-    final subtitleColor = isDark ? Colors.grey[400] : Colors.grey[600];
-
-    return InkWell(
-      onTap: () {
-        setState(() {
-          final prev = group['unread'];
-          if (prev != null) group['unread'] = 0;
-        });
-        Navigator.of(context)
-            .push(
-              MaterialPageRoute(
-                builder: (context) => ChatScreen(groupId: id, groupName: name),
+    // Glass List Item
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ScaleButton(
+        onTap: () async {
+          Navigator.of(context)
+              .push(
+                MaterialPageRoute(
+                  builder: (context) => ChatScreen(
+                      contactId: id,
+                      contactName: name,
+                      contactType: contact.type),
+                ),
+              )
+              .then((_) => _fetchData());
+        },
+        child: GlassContainer(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Avatar with active indicator (optional)
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: unread > 0
+                          ? AppPalette.neonCyan
+                          : Colors.white.withValues(alpha: 0.1),
+                      width: 2),
+                ),
+                child: CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.black26,
+                  backgroundImage: avatar,
+                  child: contact.type == 'group'
+                      ? const Icon(Icons.people,
+                          size: 16, color: Colors.white70)
+                      : null,
+                ),
               ),
-            )
-            .then((_) => _fetchData());
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: Colors.grey.shade200,
-              backgroundImage: avatar,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: titleColor,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        latestMessage?['created_at'] != null
-                            ? _formatTime(latestMessage['created_at'])
-                            : '',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: unread > 0
-                                ? const Color(0xFF25D366)
-                                : subtitleColor,
-                            fontWeight: unread > 0
-                                ? FontWeight.bold
-                                : FontWeight.normal),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: subtitleColor,
-                            fontWeight: FontWeight.normal,
-                          ),
-                        ),
-                      ),
-                      if (unread > 0)
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF25D366),
-                            shape: BoxShape.circle,
-                          ),
+              const SizedBox(width: 16),
+
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
                           child: Text(
-                            '$unread',
-                            style: TextStyle(
+                            name,
+                            style: AppTypography.bodyLarge.copyWith(
+                              fontWeight: unread > 0
+                                  ? FontWeight.bold
+                                  : FontWeight.w600,
                               color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (latestMessage != null)
+                          Text(
+                            _formatTime(latestMessage.createdAt),
+                            style: AppTypography.labelSmall.copyWith(
+                              color: unread > 0
+                                  ? AppPalette.neonCyan
+                                  : Colors.white38,
+                              fontWeight: unread > 0
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            isTyping ? 'Typing...' : subtitle,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: isTyping
+                                  ? AppPalette.neonCyan
+                                  : subtitleColor,
+                              fontStyle: isTyping
+                                  ? FontStyle.italic
+                                  : FontStyle.normal,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                    ],
-                  ),
-                ],
+                        if (unread > 0)
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppPalette.neonCyan,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              unread > 99 ? '99+' : unread.toString(),
+                              style: const TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -802,7 +821,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       });
 
       try {
-        final results = await _apiService.searchUsers(query);
+        final results = await _apiService.searchContacts(query);
         if (!mounted) return;
         setState(() {
           _searchResults = results;
@@ -813,48 +832,5 @@ class _ChatListScreenState extends State<ChatListScreen> {
     });
     // Trigger rebuild to update local filter immediately
     setState(() {});
-  }
-
-  Widget _buildUserItem(dynamic user) {
-    return ListTile(
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: Colors.grey.shade200,
-        child: Text(
-            (user['name'] ?? 'U').toString().substring(0, 1).toUpperCase(),
-            style: const TextStyle(
-                color: Colors.black87, fontWeight: FontWeight.bold)),
-      ),
-      title: Text(user['name'] ?? '',
-          style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle:
-          Text(user['email'] ?? '', style: const TextStyle(color: Colors.grey)),
-      onTap: () async {
-        setState(() => _isLoading = true);
-        final navigator = Navigator.of(context);
-        final newGroup = await _apiService.createDirectMessage(user['id']);
-        if (!mounted) return;
-
-        setState(() {
-          _isLoading = false;
-          _isSearching = false;
-          _searchController.clear();
-          _searchResults = [];
-        });
-
-        if (newGroup != null) {
-          navigator
-              .push(
-                MaterialPageRoute(
-                  builder: (context) => ChatScreen(
-                    groupId: newGroup['id'],
-                    groupName: newGroup['name'],
-                  ),
-                ),
-              )
-              .then((_) => _fetchData());
-        }
-      },
-    );
   }
 }

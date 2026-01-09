@@ -8,6 +8,7 @@ import 'package:itl/src/config/theme.dart';
 import 'package:itl/src/services/notification_service.dart';
 import 'package:itl/src/services/shared_intent_service.dart';
 import 'package:itl/src/services/theme_service.dart';
+import 'package:itl/src/config/navigation.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -79,6 +80,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, child) {
         return MaterialApp(
           title: 'ITL',
+          navigatorKey: navigatorKey,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: _themeService.themeMode,
