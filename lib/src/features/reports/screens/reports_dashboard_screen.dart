@@ -166,9 +166,7 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
           year: _selectedYear,
           search: _searchController.text,
           page: pageToFetch,
-          department:
-              _selectedMonth, // Wait, I need _selectedDepartment state first.
-          // Correcting logic below
+          department: _selectedDepartment,
         );
 
         if (mounted) {
@@ -670,7 +668,6 @@ class _LetterCardState extends State<_LetterCard> {
     // Collect all valid files
     final files = <Map<String, String>>[];
 
-    // 1. Main Letter
     if (widget.item.uploadLetterUrl != null) {
       files.add({
         'name': 'Main Letter',
@@ -679,7 +676,6 @@ class _LetterCardState extends State<_LetterCard> {
       });
     }
 
-    // 2. Invoice
     if (widget.item.invoiceUrl != null) {
       files.add({
         'name': 'Invoice',
@@ -688,7 +684,6 @@ class _LetterCardState extends State<_LetterCard> {
       });
     }
 
-    // 3. Additional Files
     for (var f in widget.item.reportFiles) {
       if (f.url != null) {
         files.add(
@@ -702,60 +697,61 @@ class _LetterCardState extends State<_LetterCard> {
       return;
     }
 
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        button.localToGlobal(Offset.zero, ancestor: overlay),
-        button.localToGlobal(button.size.bottomRight(Offset.zero),
-            ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
-    );
-
-    showMenu<String>(
+    showModalBottomSheet(
       context: context,
-      position: position,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      items: files.map((file) {
-        IconData icon;
-        Color color;
-        switch (file['type']) {
-          case 'letter':
-            icon = Icons.mail_outline;
-            color = AppPalette.electricBlue;
-            break;
-          case 'invoice':
-            icon = Icons.receipt_long;
-            color = Colors.orange;
-            break;
-          default:
-            icon = Icons.attach_file;
-            color = Colors.grey;
-        }
-
-        return PopupMenuItem<String>(
-          value: file['url'],
-          child: Row(
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GlassContainer(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  file['name']!,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodyMedium,
-                ),
-              ),
+              Text('Files & Attachments', style: AppTypography.headlineSmall),
+              const SizedBox(height: 16),
+              ...files.map((file) {
+                IconData icon;
+                Color color;
+                switch (file['type']) {
+                  case 'letter':
+                    icon = Icons.mail_outline;
+                    color = AppPalette.electricBlue;
+                    break;
+                  case 'invoice':
+                    icon = Icons.description;
+                    color = Colors.orange;
+                    break;
+                  default:
+                    icon = Icons.attach_file;
+                    color = Colors.grey;
+                }
+
+                return ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: color),
+                  ),
+                  title: Text(file['name']!, style: AppTypography.bodyMedium),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (file['url'] != null) {
+                      FileViewerService.viewFile(context, file['url']!);
+                    }
+                  },
+                );
+              }),
+              const SizedBox(height: 16),
             ],
           ),
         );
-      }).toList(),
-    ).then((url) {
-      if (url != null && context.mounted) {
-        FileViewerService.viewFile(context, url);
-      }
-    });
+      },
+    );
   }
 
   @override
@@ -830,7 +826,7 @@ class _LetterCardState extends State<_LetterCard> {
                   ElevatedButton.icon(
                     onPressed: () => _showFilesMenu(context),
                     icon: const Icon(Icons.folder_open, size: 16),
-                    label: const Text('Letter Files'),
+                    label: const Text('Reports'),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: AppPalette.electricBlue,
                         foregroundColor: Colors.white,

@@ -13,6 +13,8 @@ class GlassContainer extends StatelessWidget {
   final double? height;
   final BorderRadius? borderRadius;
   final bool isNeon; // If true, adds the Glow Shadow
+  final bool hasBorder; // If false, removes the border
+  final Color? color; // Override background color
   final VoidCallback? onTap;
 
   const GlassContainer({
@@ -24,6 +26,8 @@ class GlassContainer extends StatelessWidget {
     this.height,
     this.borderRadius,
     this.isNeon = false,
+    this.hasBorder = true,
+    this.color,
     this.onTap,
   });
 
@@ -38,14 +42,16 @@ class GlassContainer extends StatelessWidget {
       height: height,
       margin: margin,
       decoration: BoxDecoration(
-        color: ext.glassColor,
+        color: color ?? ext.glassColor,
         borderRadius: radius,
-        border: Border.all(
-          color: isNeon
-              ? theme.primaryColor.withValues(alpha: 0.5)
-              : ext.glassBorder,
-          width: isNeon ? 1.5 : 1.0,
-        ),
+        border: hasBorder
+            ? Border.all(
+                color: isNeon
+                    ? theme.primaryColor.withValues(alpha: 0.5)
+                    : ext.glassBorder,
+                width: isNeon ? 1.5 : 1.0,
+              )
+            : null,
         boxShadow: [
           if (isNeon) ext.glowShadow else ext.softShadow,
         ],

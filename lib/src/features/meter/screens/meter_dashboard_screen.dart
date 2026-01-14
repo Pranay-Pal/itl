@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:itl/src/common/utils/image_compression_service.dart';
 import 'package:itl/src/common/utils/file_viewer_service.dart';
 import 'package:itl/src/common/widgets/design_system/aurora_background.dart';
 import 'package:itl/src/common/widgets/design_system/compact_data_tile.dart';
@@ -514,7 +515,8 @@ class _MeterActionModalState extends State<_MeterActionModal> {
     final XFile? photo =
         await _picker.pickImage(source: ImageSource.camera, imageQuality: 50);
     if (photo != null) {
-      setState(() => _imagePath = photo.path);
+      final compressed = await ImageCompressionService.compressImage(photo);
+      setState(() => _imagePath = compressed.path);
     }
   }
 }

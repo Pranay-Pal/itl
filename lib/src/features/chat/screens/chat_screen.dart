@@ -23,6 +23,8 @@ import 'package:itl/src/common/widgets/design_system/aurora_background.dart';
 import 'package:itl/src/common/widgets/design_system/glass_container.dart';
 import 'package:itl/src/common/animations/scale_button.dart';
 import 'package:itl/src/config/typography.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:itl/src/common/utils/image_compression_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String contactId;
@@ -366,6 +368,42 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _takePhoto() async {
+    final ImagePicker picker = ImagePicker();
+    try {
+      final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+      if (photo != null) {
+        final compressed = await ImageCompressionService.compressImage(photo);
+        final path = compressed.path;
+
+        final sentMessage = await _apiService.uploadChatFile(
+          widget.contactId,
+          widget.contactType,
+          path,
+          replyToId: _replyToMessageId,
+        );
+
+        if (sentMessage != null && mounted) {
+          setState(() {
+            _messages.insert(0, sentMessage);
+            _replyToMessageId = null;
+          });
+          _scrollToBottomDelayed();
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to send photo')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error taking photo: $e')),
+        );
+      }
+    }
+  }
+
   // Legacy methods removed
 
   String _formatTime(DateTime? dt) {
@@ -475,12 +513,16 @@ class _ChatScreenState extends State<ChatScreen> {
               if (message.content != null && message.content!.isNotEmpty)
                 Text(
                   message.content!,
-                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                      fontSize: 15),
                 ),
               const SizedBox(height: 4),
               Text(
                 _formatTime(message.createdAt),
-                style: const TextStyle(color: Colors.white54, fontSize: 10),
+                style: TextStyle(
+                    color: Theme.of(context).textTheme.bodySmall?.color,
+                    fontSize: 10),
               ),
             ],
           ),
@@ -491,15 +533,32 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Helper for reply preview
   Widget _buildReplyPreview(ChatMessage original, {required bool isMine}) {
+    final theme = Theme.of(context);
+    final borderColor = isMine
+        ? Colors.white
+        : (theme.brightness == Brightness.light
+            ? theme.primaryColor
+            : AppPalette.neonCyan);
+    final senderColor = isMine
+        ? Colors.white70
+        : (theme.brightness == Brightness.light
+            ? theme.primaryColor
+            : AppPalette.neonCyan);
+    final contentColor = isMine
+        ? Colors.white70
+        : theme.textTheme.bodySmall?.color ?? Colors.black54;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.1),
+        color: isMine
+            ? Colors.black.withValues(alpha: 0.1)
+            : theme.cardColor.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(8),
         border: Border(
           left: BorderSide(
-            color: isMine ? Colors.white : AppPalette.neonCyan,
+            color: borderColor,
             width: 4,
           ),
         ),
@@ -512,7 +571,7 @@ class _ChatScreenState extends State<ChatScreen> {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 10,
-              color: isMine ? Colors.white70 : AppPalette.neonCyan,
+              color: senderColor,
             ),
           ),
           Text(
@@ -522,7 +581,7 @@ class _ChatScreenState extends State<ChatScreen> {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 10,
-              color: isMine ? Colors.white70 : Colors.white70,
+              color: contentColor,
             ),
           ),
         ],
@@ -531,6 +590,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildAttachment(ChatAttachment attachment, {required bool isMine}) {
+    final textColor = isMine
+        ? Colors.white
+        : Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black87;
+
     // Basic attachment handler for now, can be improved with better glass UI
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(attachment.type)) {
       return Padding(
@@ -567,21 +630,26 @@ class _ChatScreenState extends State<ChatScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.black12,
+        color: isMine
+            ? Colors.black12
+            : Theme.of(context).cardColor.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.attach_file,
-              size: 20, color: isMine ? Colors.white : Colors.white70),
+              size: 20,
+              color: isMine
+                  ? Colors.white
+                  : Theme.of(context).iconTheme.color ?? Colors.black54),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
               attachment.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: isMine ? Colors.white : Colors.white70),
+              style: TextStyle(color: textColor),
             ),
           ),
         ],
@@ -1124,6 +1192,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final replyMsg = _messageById[_replyToMessageId];
     if (replyMsg == null) return const SizedBox.shrink();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GlassContainer(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1145,7 +1215,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   replyMsg.content ?? 'Attachment',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black54),
                 ),
               ],
             ),
@@ -1156,7 +1227,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 _replyToMessageId = null;
               });
             },
-            child: const Icon(Icons.close, size: 20, color: Colors.white70),
+            child: Icon(Icons.close,
+                size: 20, color: isDark ? Colors.white70 : Colors.black54),
           )
         ],
       ),
@@ -1164,6 +1236,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildInputArea() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor =
+        isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black54;
+
     return Container(
       padding: const EdgeInsets.all(16),
       child: SafeArea(
@@ -1179,22 +1255,28 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: GlassContainer(
                     borderRadius: BorderRadius.circular(24),
+                    hasBorder: false,
+                    color: Colors.black
+                        .withValues(alpha: 0.1), // Very subtle shade
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: Row(
                       children: [
                         IconButton(
                           icon: Icon(Icons.emoji_emotions_outlined,
-                              color: Colors.white.withValues(alpha: 0.6)),
+                              color: iconColor),
                           onPressed: () {},
                         ),
                         Expanded(
                           child: TextField(
                             controller: _messageController,
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black87),
                             decoration: InputDecoration(
                               hintText: "Message",
                               hintStyle: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.4)),
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.4)
+                                      : Colors.black38),
                               border: InputBorder.none,
                               contentPadding:
                                   const EdgeInsets.symmetric(vertical: 10),
@@ -1212,15 +1294,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                         ),
                         IconButton(
-                          icon: Icon(Icons.attach_file,
-                              color: Colors.white.withValues(alpha: 0.6)),
+                          icon: Icon(Icons.attach_file, color: iconColor),
                           onPressed: _uploadFile,
                         ),
                         if (_messageController.text.isEmpty)
                           IconButton(
-                            icon: Icon(Icons.camera_alt,
-                                color: Colors.white.withValues(alpha: 0.6)),
-                            onPressed: _uploadFile,
+                            icon: Icon(Icons.camera_alt, color: iconColor),
+                            onPressed: _takePhoto,
                           ),
                       ],
                     ),

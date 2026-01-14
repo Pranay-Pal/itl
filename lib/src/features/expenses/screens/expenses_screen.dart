@@ -17,7 +17,7 @@ import 'package:itl/src/features/expenses/models/checked_in_expense_model.dart';
 import 'package:itl/src/services/api_service.dart';
 import 'package:itl/src/services/download_util.dart';
 import 'package:itl/src/services/marketing_service.dart';
-import 'package:itl/src/shared/screens/pdf_viewer_screen.dart';
+import 'package:itl/src/common/utils/image_compression_service.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -336,9 +336,12 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         final photo =
                             await picker.pickImage(source: ImageSource.camera);
                         if (photo != null) {
+                          final compressed =
+                              await ImageCompressionService.compressImage(
+                                  photo);
                           setSheetState(() {
-                            filePath = photo.path;
-                            fileName = photo.name;
+                            filePath = compressed.path;
+                            fileName = compressed.name;
                           });
                         }
                       },
@@ -572,15 +575,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
     final ext = fullUrl.split('.').last.split('?').first.toLowerCase();
     if (ext == 'pdf') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PdfViewerScreen(
-            url: fullUrl,
-            title: title,
-          ),
-        ),
-      );
+      downloadAndOpen(fullUrl);
     } else {
       downloadAndOpen(fullUrl);
     }

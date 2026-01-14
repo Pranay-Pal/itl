@@ -401,8 +401,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Messages',
-                        style: AppTypography.displaySmall
-                            .copyWith(color: Colors.white, fontSize: 28)),
+                        style: AppTypography.displaySmall.copyWith(
+                            color: isDark ? Colors.white : Colors.black87,
+                            fontSize: 28)),
                     Row(
                       children: [
                         _buildHeaderIcon(Icons.table_chart, 'Bookings', () {
@@ -435,21 +436,27 @@ class _ChatListScreenState extends State<ChatListScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: GlassContainer(
+                hasBorder: false,
+                color: Colors.black.withValues(alpha: 0.1), // Very subtle shade
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 height: 50,
                 child: Row(
                   children: [
                     Icon(Icons.search,
-                        color: Colors.white.withValues(alpha: 0.5)),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.5)
+                            : Colors.black54),
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
                         focusNode: _searchFocus,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
+                        style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87),
+                        decoration: InputDecoration(
                           hintText: 'Search conversations...',
-                          hintStyle: TextStyle(color: Colors.white54),
+                          hintStyle: TextStyle(
+                              color: isDark ? Colors.white54 : Colors.black38),
                           border: InputBorder.none,
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
@@ -525,21 +532,26 @@ class _ChatListScreenState extends State<ChatListScreen> {
   // Removed _buildCustomHeader as we rely on standard AppBar now
 
   Widget _buildHeaderIcon(IconData icon, String tooltip, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ScaleButton(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.white, size: 20),
+        child:
+            Icon(icon, color: isDark ? Colors.white : Colors.black87, size: 20),
       ),
     );
   }
 
   Widget _buildNeonFilterChip(
       String label, bool isSelected, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ScaleButton(
       onTap: onTap,
       child: AnimatedContainer(
@@ -548,11 +560,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? AppPalette.neonCyan.withValues(alpha: 0.2)
-              : Colors.white.withValues(alpha: 0.05),
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.05)),
           border: Border.all(
             color: isSelected
                 ? AppPalette.neonCyan
-                : Colors.white.withValues(alpha: 0.1),
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.black.withValues(alpha: 0.1)),
           ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: isSelected
@@ -566,7 +582,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? AppPalette.neonCyan : Colors.white70,
+            color: isSelected
+                ? AppPalette.neonCyan
+                : (isDark ? Colors.white70 : Colors.black87),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -575,6 +593,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Widget _buildListContent() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (_isSearching) {
       final query = _searchController.text.toLowerCase().trim();
       final localMatches = _chatContacts.where((g) {
@@ -585,7 +604,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
       if (localMatches.isEmpty && _searchResults.isEmpty) {
         return Center(
           child: Text("No conversations found",
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
+              style: TextStyle(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.5)
+                      : Colors.black54)),
         );
       }
 
@@ -625,10 +647,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(EvaIcons.message_circle_outline,
-                size: 60, color: Colors.white.withValues(alpha: 0.2)),
+                size: 60,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : Colors.black.withValues(alpha: 0.1)),
             const SizedBox(height: 16),
             Text("No conversations yet",
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
+                style: TextStyle(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.5)
+                        : Colors.black38)),
           ],
         ),
       );
@@ -645,6 +673,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Widget _buildChatItem(ChatContact contact) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final name = contact.name;
     final id = contact.id;
     final unread = contact.unreadCount;
@@ -660,7 +691,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final latestMessage = contact.lastMessage;
     String subtitle = 'No messages';
     bool isTyping = _typingUsers.contains(id); // Hooked up to state
-    Color subtitleColor = Colors.white54;
+    Color subtitleColor = isDark ? Colors.white54 : Colors.black54;
 
     if (latestMessage != null) {
       final sender = latestMessage.senderName;
@@ -709,16 +740,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   border: Border.all(
                       color: unread > 0
                           ? AppPalette.neonCyan
-                          : Colors.white.withValues(alpha: 0.1),
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : Colors.black.withValues(alpha: 0.1)),
                       width: 2),
                 ),
                 child: CircleAvatar(
                   radius: 24,
-                  backgroundColor: Colors.black26,
+                  backgroundColor: isDark ? Colors.black26 : Colors.grey[200],
                   backgroundImage: avatar,
                   child: contact.type == 'group'
-                      ? const Icon(Icons.people,
-                          size: 16, color: Colors.white70)
+                      ? Icon(Icons.people,
+                          size: 16,
+                          color: isDark ? Colors.white70 : Colors.black54)
                       : null,
                 ),
               ),
@@ -739,7 +773,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               fontWeight: unread > 0
                                   ? FontWeight.bold
                                   : FontWeight.w600,
-                              color: Colors.white,
+                              color: isDark ? Colors.white : Colors.black87,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -751,7 +785,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             style: AppTypography.labelSmall.copyWith(
                               color: unread > 0
                                   ? AppPalette.neonCyan
-                                  : Colors.white38,
+                                  : (isDark ? Colors.white38 : Colors.black38),
                               fontWeight: unread > 0
                                   ? FontWeight.bold
                                   : FontWeight.normal,

@@ -7,7 +7,15 @@ import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:itl/src/services/api_service.dart';
 
-String _sanitizeUrl(String url) => url.replaceAll('\\', '');
+String _sanitizeUrl(String url) {
+  var clean = url.replaceAll('\\', '');
+  // Fix for file downloads: The API returns /superadmin/ URLs which are web-auth protected.
+  // We need to switch to /api/ to use Bearer auth.
+  if (clean.contains('/superadmin/') && clean.contains('/show/')) {
+    clean = clean.replaceFirst('/superadmin/', '/api/');
+  }
+  return clean;
+}
 
 Future<String> _filenameFromUrl(String url) async {
   final clean = _sanitizeUrl(url);
