@@ -11,7 +11,7 @@ class FileViewerService {
   /// [url] - The full or relative URL
   /// [title] - Title for PDF viewer
   static void viewFile(BuildContext context, String url,
-      {String title = 'Document'}) {
+      {String title = 'Document'}) async {
     if (url.isEmpty) {
       _showError(context, 'Invalid file URL');
       return;
@@ -32,14 +32,25 @@ class FileViewerService {
 
     final ext = fullUrl.split('.').last.split('?').first.toLowerCase();
 
-    if (ext == 'pdf') {
-      downloadAndOpen(fullUrl);
-    } else if (['jpg', 'jpeg', 'png'].contains(ext)) {
-      // For images, we could do an image viewer, but for now download/open
-      downloadAndOpen(fullUrl);
-    } else {
-      // Fallback for others
-      _launchUrl(context, fullUrl);
+    _showLoader(context);
+    try {
+      if (ext == 'pdf') {
+        await downloadAndOpen(fullUrl);
+      } else if (['jpg', 'jpeg', 'png'].contains(ext)) {
+        // For images, we could do an image viewer, but for now download/open
+        await downloadAndOpen(fullUrl);
+      } else {
+        // Fallback for others
+        await _launchUrl(context, fullUrl);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _showError(context, 'Could not open file: $e');
+      }
+    } finally {
+      if (context.mounted) {
+        _hideLoader(context);
+      }
     }
   }
 
@@ -48,9 +59,24 @@ class FileViewerService {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      if (!context.mounted) return;
-      _showError(context, 'Could not launch URL');
+      throw Exception('Could not launch URL');
     }
+  }
+
+  static void _showLoader(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+  }
+
+  static void _hideLoader(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).pop();
   }
 
   static void _showError(BuildContext context, String msg) {

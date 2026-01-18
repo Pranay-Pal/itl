@@ -104,7 +104,7 @@ class _PendingDashboardScreenState extends State<PendingDashboardScreen>
     }
 
     try {
-      final currentMode = _tabController.index == 0 ? 'job' : 'reference';
+      final currentMode = _tabController.index == 0 ? 'reference' : 'job';
 
       final response = await _marketingService.getPendingReports(
         userCode: widget.userCode,
@@ -230,8 +230,8 @@ class _PendingDashboardScreenState extends State<PendingDashboardScreen>
                   labelColor: AppPalette.electricBlue,
                   unselectedLabelColor: Colors.grey,
                   tabs: const [
-                    Tab(text: 'By Job Order'),
                     Tab(text: 'By Reference'),
+                    Tab(text: 'By Job Order'),
                   ],
                 ),
               ),
@@ -248,8 +248,8 @@ class _PendingDashboardScreenState extends State<PendingDashboardScreen>
           body: TabBarView(
             controller: _tabController,
             children: [
-              _buildJobList(),
               _buildReferenceList(),
+              _buildJobList(),
             ],
           ),
         ),

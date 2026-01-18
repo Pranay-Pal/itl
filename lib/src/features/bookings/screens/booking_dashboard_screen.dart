@@ -132,31 +132,7 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
 
     try {
       if (_tabController.index == 0) {
-        // Tab 1: Show Booking (Flat List)
-        final pageToFetch = isLoadMore ? _currentPageBooking + 1 : 1;
-        if (isLoadMore && pageToFetch > _lastPageBooking) return;
-
-        final response = await _marketingService.getBookings(
-          userCode: widget.userCode,
-          month: _selectedMonth,
-          year: _selectedYear,
-          search: _searchTerm,
-          page: pageToFetch,
-        );
-
-        if (mounted) {
-          setState(() {
-            if (isLoadMore) {
-              _bookings.addAll(response.items);
-            } else {
-              _bookings = response.items;
-            }
-            _currentPageBooking = response.currentPage;
-            _lastPageBooking = response.lastPage;
-          });
-        }
-      } else {
-        // Tab 2: Booking By Letter (Grouped)
+        // Tab 1: Booking By Letter (Swapped)
         final pageToFetch = isLoadMore ? _currentPageLetter + 1 : 1;
         if (isLoadMore && pageToFetch > _lastPageLetter) return;
 
@@ -180,6 +156,30 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
             _lastPageLetter = response.lastPage;
           });
         }
+      } else {
+        // Tab 2: Show Booking (Flat List - Swapped)
+        final pageToFetch = isLoadMore ? _currentPageBooking + 1 : 1;
+        if (isLoadMore && pageToFetch > _lastPageBooking) return;
+
+        final response = await _marketingService.getBookings(
+          userCode: widget.userCode,
+          month: _selectedMonth,
+          year: _selectedYear,
+          search: _searchTerm,
+          page: pageToFetch,
+        );
+
+        if (mounted) {
+          setState(() {
+            if (isLoadMore) {
+              _bookings.addAll(response.items);
+            } else {
+              _bookings = response.items;
+            }
+            _currentPageBooking = response.currentPage;
+            _lastPageBooking = response.lastPage;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -200,13 +200,13 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
   void _loadMoreData() {
     // Check if we can load more based on current tab
     if (_tabController.index == 0) {
-      if (_currentPageBooking < _lastPageBooking &&
+      if (_currentPageLetter < _lastPageLetter &&
           !_isLoadingMore &&
           !_isLoading) {
         _fetchData(isLoadMore: true);
       }
     } else {
-      if (_currentPageLetter < _lastPageLetter &&
+      if (_currentPageBooking < _lastPageBooking &&
           !_isLoadingMore &&
           !_isLoading) {
         _fetchData(isLoadMore: true);
@@ -394,8 +394,8 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
                   labelColor: AppPalette.electricBlue,
                   unselectedLabelColor: Colors.grey,
                   tabs: const [
-                    Tab(text: 'All Bookings'),
                     Tab(text: 'By Letter'),
+                    Tab(text: 'All Bookings'),
                   ],
                 ),
               ),
@@ -416,8 +416,8 @@ class _BookingDashboardScreenState extends State<BookingDashboardScreen>
           body: TabBarView(
             controller: _tabController,
             children: [
-              _buildBookingsTab(),
               _buildLettersTab(),
+              _buildBookingsTab(),
             ],
           ),
         ),

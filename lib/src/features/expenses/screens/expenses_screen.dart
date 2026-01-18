@@ -9,15 +9,14 @@ import 'package:itl/src/common/widgets/design_system/compact_data_tile.dart';
 
 import 'package:itl/src/common/widgets/design_system/glass_container.dart';
 import 'package:itl/src/config/app_layout.dart';
-import 'package:itl/src/config/base_url.dart' as config;
 import 'package:itl/src/config/app_palette.dart';
 import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/expenses/models/expense_model.dart';
 import 'package:itl/src/features/expenses/models/checked_in_expense_model.dart';
 import 'package:itl/src/services/api_service.dart';
-import 'package:itl/src/services/download_util.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/common/utils/image_compression_service.dart';
+import 'package:itl/src/common/utils/file_viewer_service.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -563,22 +562,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   void _viewReceipt(String url, String title) {
-    // Handle relative URLs (common in Checked-In expenses)
-    String fullUrl = url;
-    if (!url.startsWith('http')) {
-      if (!url.startsWith('/')) {
-        fullUrl = '${config.baseUrl}/$url';
-      } else {
-        fullUrl = '${config.baseUrl}$url';
-      }
-    }
-
-    final ext = fullUrl.split('.').last.split('?').first.toLowerCase();
-    if (ext == 'pdf') {
-      downloadAndOpen(fullUrl);
-    } else {
-      downloadAndOpen(fullUrl);
-    }
+    FileViewerService.viewFile(context, url, title: title);
   }
 
   Color _getStatusColor(String status) {

@@ -12,8 +12,6 @@ import 'package:itl/src/features/bookings/models/booking_model.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/common/widgets/design_system/glass_container.dart';
 import 'package:itl/src/common/utils/file_viewer_service.dart';
-import 'package:itl/src/services/download_util.dart';
-import 'package:itl/src/config/base_url.dart' as config;
 
 class ReportsDashboardScreen extends StatefulWidget {
   final String userCode;
@@ -106,8 +104,9 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
   void _handleTabChange() {
     if (!_tabController.indexIsChanging) {
       // If switching tabs, check if we need to fetch data
-      if ((_tabController.index == 0 && _reports.isEmpty) ||
-          (_tabController.index == 1 && _letters.isEmpty)) {
+      // Index 0 is now Letters, Index 1 is Job Orders
+      if ((_tabController.index == 0 && _letters.isEmpty) ||
+          (_tabController.index == 1 && _reports.isEmpty)) {
         _fetchData();
       }
     }
@@ -134,31 +133,7 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
 
     try {
       if (_tabController.index == 0) {
-        // Tab 1: By Job Order
-        final pageToFetch = isLoadMore ? _currentPageReport + 1 : 1;
-        if (isLoadMore && pageToFetch > _lastPageReport) return;
-
-        final response = await _marketingService.getReports(
-          userCode: widget.userCode,
-          month: _selectedMonth,
-          year: _selectedYear,
-          search: _searchController.text,
-          page: pageToFetch,
-        );
-
-        if (mounted) {
-          setState(() {
-            if (isLoadMore) {
-              _reports.addAll(response.items);
-            } else {
-              _reports = response.items;
-            }
-            _currentPageReport = response.currentPage;
-            _lastPageReport = response.lastPage;
-          });
-        }
-      } else {
-        // Tab 2: By Letter
+        // Tab 1: By Letter (Swapped)
         final pageToFetch = isLoadMore ? _currentPageLetter + 1 : 1;
         if (isLoadMore && pageToFetch > _lastPageLetter) return;
 
@@ -182,6 +157,30 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
             _lastPageLetter = response.lastPage;
           });
         }
+      } else {
+        // Tab 2: By Job Order (Swapped)
+        final pageToFetch = isLoadMore ? _currentPageReport + 1 : 1;
+        if (isLoadMore && pageToFetch > _lastPageReport) return;
+
+        final response = await _marketingService.getReports(
+          userCode: widget.userCode,
+          month: _selectedMonth,
+          year: _selectedYear,
+          search: _searchController.text,
+          page: pageToFetch,
+        );
+
+        if (mounted) {
+          setState(() {
+            if (isLoadMore) {
+              _reports.addAll(response.items);
+            } else {
+              _reports = response.items;
+            }
+            _currentPageReport = response.currentPage;
+            _lastPageReport = response.lastPage;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -202,13 +201,15 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
   void _loadMoreData() {
     // Trigger Logic wrapped in scroll listener
     if (_tabController.index == 0) {
-      if (_currentPageReport < _lastPageReport &&
+      // By Letter
+      if (_currentPageLetter < _lastPageLetter &&
           !_isLoadingMore &&
           !_isLoading) {
         _fetchData(isLoadMore: true);
       }
     } else {
-      if (_currentPageLetter < _lastPageLetter &&
+      // By Job Order
+      if (_currentPageReport < _lastPageReport &&
           !_isLoadingMore &&
           !_isLoading) {
         _fetchData(isLoadMore: true);
@@ -304,8 +305,8 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
                   labelColor: AppPalette.electricBlue,
                   unselectedLabelColor: Colors.grey,
                   tabs: const [
-                    Tab(text: 'By Job Order'),
                     Tab(text: 'By Letter'),
+                    Tab(text: 'By Job Order'),
                   ],
                 ),
               ),
@@ -328,8 +329,8 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen>
           body: TabBarView(
             controller: _tabController,
             children: [
-              _buildReportList(),
               _buildLetterList(),
+              _buildReportList(),
             ],
           ),
         ),
@@ -699,6 +700,7 @@ class _LetterCardState extends State<_LetterCard> {
       return;
     }
 
+    // Simplified this widget to use FileViewerService directly for consistent loading
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -743,27 +745,7 @@ class _LetterCardState extends State<_LetterCard> {
                   onTap: () {
                     Navigator.pop(context);
                     if (file['url'] != null) {
-                      var url = file['url']!;
-                      // Fix relative URL logic matching FileViewerService
-                      if (!url.startsWith('http')) {
-                        final host = config.baseUrl;
-                        // Handle double slashes
-                        if (url.startsWith('/')) {
-                          url = host.endsWith('/')
-                              ? "$host${url.substring(1)}"
-                              : "$host$url";
-                        } else {
-                          url = host.endsWith('/') ? "$host$url" : "$host/$url";
-                        }
-                      }
-
-                      // Force download/open for letters and invoices as they are secure PDFs
-                      if (file['type'] == 'letter' ||
-                          file['type'] == 'invoice') {
-                        downloadAndOpen(url);
-                      } else {
-                        FileViewerService.viewFile(context, url);
-                      }
+                      FileViewerService.viewFile(context, file['url']!);
                     }
                   },
                 );
