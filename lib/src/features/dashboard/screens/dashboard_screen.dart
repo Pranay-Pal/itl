@@ -29,6 +29,8 @@ import 'package:itl/src/services/meter_service.dart';
 import 'package:intl/intl.dart';
 import 'package:itl/src/utils/currency_formatter.dart';
 import 'package:itl/src/features/invoices/screens/invoice_list_screen.dart';
+import 'package:itl/src/features/marketing/screens/hold_cancelled_screen.dart';
+import 'package:itl/src/features/marketing/screens/quotation_list_screen.dart';
 import 'package:pusher_channels_flutter/pusher_channels_flutter.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -444,7 +446,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
 
-                          // 7. Invoice Performance (Wide Chart)
+                          // 7.5 Marketing: Hold/Cancel (Nav)
+                          if (_isUser)
+                            StaggeredGridTile.count(
+                              crossAxisCellCount: 1,
+                              mainAxisCellCount: 1,
+                              child: _buildBentoCard(
+                                title: 'Marketing',
+                                value: 'Hold/Cnl',
+                                subtitle: 'Enquiry',
+                                icon: Icons.pause_circle_outline,
+                                color: AppPalette.warningOrange,
+                                delay: 350,
+                                onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const HoldCancelledScreen())),
+                              ),
+                            ),
+
+                          // 7.6 Marketing: Quotations (Nav)
+                          if (_isUser)
+                            StaggeredGridTile.count(
+                              crossAxisCellCount: 1,
+                              mainAxisCellCount: 1,
+                              child: _buildBentoCard(
+                                title: 'Marketing',
+                                value: 'Quotes',
+                                subtitle: 'Review',
+                                icon: Icons.request_quote_outlined,
+                                color: AppPalette.neonCyan,
+                                delay: 350,
+                                onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const QuotationListScreen())),
+                              ),
+                            ),
+
+                          // 8. Invoice Performance (Wide Chart)
                           StaggeredGridTile.count(
                             crossAxisCellCount: 2,
                             mainAxisCellCount: 1.5, // Taller
@@ -1027,6 +1069,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       userCode: _apiService.userCode ?? '')),
               _drawerItem(context, 'Meter Readings', Icons.speed_rounded,
                   () => const MeterDashboardScreen()),
+              _drawerItem(
+                  context,
+                  'Hold & Cancelled',
+                  Icons.pause_circle_outline,
+                  () => const HoldCancelledScreen()),
+              _drawerItem(context, 'Quotations', Icons.request_quote_outlined,
+                  () => const QuotationListScreen()),
             ] else if (_apiService.userType == 'admin') ...[
               _drawerItem(context, 'Expenses', Icons.receipt_long_rounded,
                   () => const ExpensesScreen()),

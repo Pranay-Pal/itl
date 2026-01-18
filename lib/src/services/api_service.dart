@@ -1199,6 +1199,104 @@ class ApiService {
     }
     return null;
   }
+
+  // --- Marketing: Hold/Cancel ---
+
+  Future<Map<String, dynamic>?> getHoldCancelledItems({
+    int page = 1,
+    String? job,
+  }) async {
+    await _loadToken();
+    if (_userCode == null) return null;
+
+    String url =
+        '$_baseUrl/marketing-person/$_userCode/hold-cancelled?page=$page';
+    if (job != null && job.isNotEmpty) {
+      url += '&job=${Uri.encodeQueryComponent(job)}';
+    }
+
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return null;
+  }
+
+  Future<bool> submitHoldCancelEnquiry({
+    required int itemId,
+    required String note,
+    List<String>? filePaths,
+  }) async {
+    await _loadToken();
+    if (_userCode == null) return false;
+
+    final url = '$_baseUrl/marketing-person/$_userCode/hold-cancelled/enquiry';
+
+    Future<http.StreamedResponse> makeRequest() async {
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+      if (_token != null) {
+        request.headers['Authorization'] = 'Bearer $_token';
+      }
+
+      request.fields['booking_item_id'] = itemId.toString();
+      request.fields['note'] = note;
+
+      if (filePaths != null) {
+        for (final path in filePaths) {
+          final file = await http.MultipartFile.fromPath('media[]', path);
+          request.files.add(file);
+        }
+      }
+      return await request.send();
+    }
+
+    await _ensureTokenValid();
+    var response = await makeRequest();
+
+    if (response.statusCode == 401) {
+      final didRefresh = await refreshToken();
+      if (didRefresh) response = await makeRequest();
+    }
+
+    // Success response usually 200 or 201
+    return response.statusCode >= 200 && response.statusCode < 300;
+  }
+
+  // --- Marketing: Quotations ---
+
+  Future<Map<String, dynamic>?> getQuotations({
+    int page = 1,
+    String? search,
+    String? clientName,
+    int? month,
+    int? year,
+  }) async {
+    await _loadToken();
+    if (_userCode == null) return null;
+
+    String url = '$_baseUrl/marketing-person/$_userCode/quotations?page=$page';
+
+    if (search != null && search.isNotEmpty) {
+      url += '&search=${Uri.encodeQueryComponent(search)}';
+    }
+    if (clientName != null && clientName.isNotEmpty) {
+      url += '&client_name=${Uri.encodeQueryComponent(clientName)}';
+    }
+    if (month != null) {
+      url += '&month=$month';
+    }
+    if (year != null) {
+      url += '&year=$year';
+    }
+
+    final response = await _sendHttpWithAuthAndRetry('GET', url);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return null;
+  }
 }
 
 /// Standalone function for [compute].

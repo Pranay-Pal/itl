@@ -8,6 +8,7 @@ import 'package:itl/src/config/app_layout.dart';
 import 'package:itl/src/config/typography.dart';
 import 'package:itl/src/features/dashboard/screens/dashboard_screen.dart';
 import 'package:itl/src/services/api_service.dart';
+import 'package:itl/src/features/auth/screens/admin_webview_screen.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -178,17 +179,7 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: AppLayout.gapL),
 
                         // Inputs
-                        if (_selectedUserType == 'admin')
-                          TextFormField(
-                            controller: _emailController,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
-                              prefixIcon: Icon(Icons.email_outlined),
-                            ),
-                            validator: (v) =>
-                                v!.isEmpty ? 'Please enter email' : null,
-                          )
-                        else
+                        if (_selectedUserType == 'user') ...[
                           TextFormField(
                             controller: _userCodeController,
                             decoration: const InputDecoration(
@@ -198,18 +189,18 @@ class _LoginPageState extends State<LoginPage> {
                             validator: (v) =>
                                 v!.isEmpty ? 'Please enter user code' : null,
                           ),
-                        const SizedBox(height: AppLayout.gapL),
-
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon: Icon(Icons.lock_outline),
+                          const SizedBox(height: AppLayout.gapL),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Password',
+                              prefixIcon: Icon(Icons.lock_outline),
+                            ),
+                            validator: (v) =>
+                                v!.isEmpty ? 'Please enter password' : null,
                           ),
-                          validator: (v) =>
-                              v!.isEmpty ? 'Please enter password' : null,
-                        ),
+                        ],
 
                         const SizedBox(height: AppLayout.gapL),
 
@@ -227,7 +218,16 @@ class _LoginPageState extends State<LoginPage> {
 
                         // Sign In Button
                         ScaleButton(
-                          onTap: _isLoading ? null : _login,
+                          onTap: _selectedUserType == 'admin'
+                              ? () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const AdminWebViewScreen(),
+                                    ),
+                                  );
+                                }
+                              : (_isLoading ? null : _login),
                           child: Container(
                             height: 50,
                             decoration: BoxDecoration(
@@ -254,7 +254,9 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                   )
                                 : Text(
-                                    'Sign In',
+                                    _selectedUserType == 'admin'
+                                        ? 'Open Admin Portal'
+                                        : 'Sign In',
                                     style: AppTypography.labelLarge
                                         .copyWith(color: Colors.white),
                                   ),

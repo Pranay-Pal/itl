@@ -1,0 +1,48 @@
+Logging in...
+Login Successful. Token obtained.
+
+--- Fetching Hold/Cancelled Items ---
+D:\itl\.agent\verify_
+marketing_features.ps
+1 : Failed to fetch 
+Hold/Cancelled 
+items: The remote 
+server returned an 
+error: (404) Not 
+Found.
+    + CategoryInfo   
+           : NotSpe  
+  cified: (:) [Wri   
+ te-Error], Write    
+ErrorException
+    + FullyQualified 
+   ErrorId : Micros  
+  oft.PowerShell.C   
+ ommands.WriteErr    
+orException,veri    
+fy_marketing_fea    
+tures.ps1
+ 
+Response: 
+
+--- Fetching Quotations ---
+D:\itl\.agent\verify_
+marketing_features.ps
+1 : Failed to fetch 
+Quotations: The 
+remote server 
+returned an error: 
+(404) Not Found.
+    + CategoryInfo   
+           : NotSpe  
+  cified: (:) [Wri   
+ te-Error], Write    
+ErrorException
+    + FullyQualified 
+   ErrorId : Micros  
+  oft.PowerShell.C   
+ ommands.WriteErr    
+orException,veri    
+fy_marketing_fea    
+tures.ps1
+ 

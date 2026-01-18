@@ -1,0 +1,88 @@
+﻿{
+    "status":  true,
+    "message":  "Quotations fetched successfully",
+    "data":  {
+                 "current_page":  1,
+                 "data":  [
+                              {
+                                  "id":  15,
+                                  "quotation_no":  "testing",
+                                  "quotation_date":  "2026-01-02T18:30:00.000000Z",
+                                  "client_name":  "testing",
+                                  "client_gstin":  "testing",
+                                  "name_of_work":  "testing",
+                                  "bill_issue_to":  "testing",
+                                  "marketing_person_code":  "MKT001",
+                                  "generated_by":  null,
+                                  "items":  [
+                                                {
+                                                    "description":  "testing",
+                                                    "qty":  "1",
+                                                    "rate":  "1",
+                                                    "amount":  "1.00"
+                                                },
+                                                {
+                                                    "description":  "testing",
+                                                    "qty":  "1",
+                                                    "rate":  "1",
+                                                    "amount":  "1.00"
+                                                },
+                                                {
+                                                    "description":  "testing",
+                                                    "qty":  "1",
+                                                    "rate":  "1",
+                                                    "amount":  "1.00"
+                                                },
+                                                {
+                                                    "description":  "testing",
+                                                    "qty":  "11",
+                                                    "rate":  "125",
+                                                    "amount":  "1375.00"
+                                                }
+                                            ],
+                                  "total_amount":  "1378.00",
+                                  "discount_percent":  "0.00",
+                                  "discount_amount":  "0.00",
+                                  "after_discount":  "1378.00",
+                                  "cgst_percent":  "0.00",
+                                  "cgst_amount":  "0.00",
+                                  "sgst_percent":  "0.00",
+                                  "sgst_amount":  "0.00",
+                                  "igst_percent":  "18.00",
+                                  "igst_amount":  "248.04",
+                                  "round_off":  "-0.04",
+                                  "payable_amount":  "1626.00",
+                                  "letterhead":  1,
+                                  "created_at":  "2026-01-03T11:54:46.000000Z",
+                                  "updated_at":  "2026-01-03T11:59:01.000000Z"
+                              }
+                          ],
+                 "first_page_url":  "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/quotations?page=1",
+                 "from":  1,
+                 "last_page":  1,
+                 "last_page_url":  "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/quotations?page=1",
+                 "links":  [
+                               {
+                                   "url":  null,
+                                   "label":  "\u0026laquo; Previous",
+                                   "active":  false
+                               },
+                               {
+                                   "url":  "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/quotations?page=1",
+                                   "label":  "1",
+                                   "active":  true
+                               },
+                               {
+                                   "url":  null,
+                                   "label":  "Next \u0026raquo;",
+                                   "active":  false
+                               }
+                           ],
+                 "next_page_url":  null,
+                 "path":  "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/quotations",
+                 "per_page":  10,
+                 "prev_page_url":  null,
+                 "to":  1,
+                 "total":  1
+             }
+}

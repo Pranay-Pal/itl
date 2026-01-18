@@ -12,6 +12,8 @@ import 'package:itl/src/features/bookings/models/booking_model.dart';
 import 'package:itl/src/services/marketing_service.dart';
 import 'package:itl/src/common/widgets/design_system/glass_container.dart';
 import 'package:itl/src/common/utils/file_viewer_service.dart';
+import 'package:itl/src/services/download_util.dart';
+import 'package:itl/src/config/base_url.dart' as config;
 
 class ReportsDashboardScreen extends StatefulWidget {
   final String userCode;
@@ -741,7 +743,27 @@ class _LetterCardState extends State<_LetterCard> {
                   onTap: () {
                     Navigator.pop(context);
                     if (file['url'] != null) {
-                      FileViewerService.viewFile(context, file['url']!);
+                      var url = file['url']!;
+                      // Fix relative URL logic matching FileViewerService
+                      if (!url.startsWith('http')) {
+                        final host = config.baseUrl;
+                        // Handle double slashes
+                        if (url.startsWith('/')) {
+                          url = host.endsWith('/')
+                              ? "$host${url.substring(1)}"
+                              : "$host$url";
+                        } else {
+                          url = host.endsWith('/') ? "$host$url" : "$host/$url";
+                        }
+                      }
+
+                      // Force download/open for letters and invoices as they are secure PDFs
+                      if (file['type'] == 'letter' ||
+                          file['type'] == 'invoice') {
+                        downloadAndOpen(url);
+                      } else {
+                        FileViewerService.viewFile(context, url);
+                      }
                     }
                   },
                 );

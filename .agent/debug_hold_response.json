@@ -1,0 +1,92 @@
+﻿{
+    "status":  "success",
+    "data":  {
+                 "current_page":  1,
+                 "data":  [
+                              {
+                                  "id":  115627,
+                                  "job_order_no":  "ITLNBC.C20250317001",
+                                  "description":  "PAINT- OBD  White,  Make - ASIAN,  INVOICE NO. -T.I 23270/24-25",
+                                  "status":  {
+                                                 "label":  "Held",
+                                                 "type":  "warning",
+                                                 "reason":  "tryj"
+                                             },
+                                  "enquiry":  null
+                              },
+                              {
+                                  "id":  115626,
+                                  "job_order_no":  "ITLNBC.M20250317060",
+                                  "description":  "Red Brick, Make-Bhagwati, Class-CD 100",
+                                  "status":  {
+                                                 "label":  "Canceled",
+                                                 "type":  "danger",
+                                                 "reason":  "frhtjh"
+                                             },
+                                  "enquiry":  null
+                              },
+                              {
+                                  "id":  115625,
+                                  "job_order_no":  "ITLNBC.M20250317059",
+                                  "description":  "Red Brick, Make-Baba, Class-CD 100",
+                                  "status":  {
+                                                 "label":  "Canceled",
+                                                 "type":  "danger",
+                                                 "reason":  "fyuj"
+                                             },
+                                  "enquiry":  null
+                              },
+                              {
+                                  "id":  115624,
+                                  "job_order_no":  "ITLNBC.M20250317058",
+                                  "description":  "GSB",
+                                  "status":  {
+                                                 "label":  "Held",
+                                                 "type":  "warning",
+                                                 "reason":  "hgvb"
+                                             },
+                                  "enquiry":  {
+                                                  "id":  1,
+                                                  "note":  "test",
+                                                  "media":  [
+                                                                {
+                                                                    "path":  "marketing_enquiries/2VMmMplsRPPw0UEbEsY5mBoVrVs1OwOeT8fIlsr8.pdf",
+                                                                    "name":  "2VMmMplsRPPw0UEbEsY5mBoVrVs1OwOeT8fIlsr8.pdf",
+                                                                    "url":  "/storage/marketing_enquiries/2VMmMplsRPPw0UEbEsY5mBoVrVs1OwOeT8fIlsr8.pdf"
+                                                                }
+                                                            ],
+                                                  "created_at":  "15/01/2026 01:26 AM",
+                                                  "created_at_iso":  "2026-01-15T01:26:32+05:30"
+                                              }
+                              }
+                          ],
+                 "first_page_url":  "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/hold-cancelled?page=1",
+                 "from":  1,
+                 "last_page":  1,
+                 "last_page_url":  "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/hold-cancelled?page=1",
+                 "links":  [
+                               {
+                                   "url":  null,
+                                   "label":  "\u0026laquo; Previous",
+                                   "active":  false
+                               },
+                               {
+                                   "url":  "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/hold-cancelled?page=1",
+                                   "label":  "1",
+                                   "active":  true
+                               },
+                               {
+                                   "url":  null,
+                                   "label":  "Next \u0026raquo;",
+                                   "active":  false
+                               }
+                           ],
+                 "next_page_url":  null,
+                 "path":  "https://mediumslateblue-hummingbird-258203.hostingersite.com/api/marketing-person/MKT001/hold-cancelled",
+                 "per_page":  20,
+                 "prev_page_url":  null,
+                 "to":  4,
+                 "total":  4
+             },
+    "header":  null
+}

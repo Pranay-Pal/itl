@@ -20,6 +20,7 @@ class AppPalette {
 
   // Accents
   static const Color cyberPurple = Color(0xFF7209B7);
+  static const Color primaryPurple = Color(0xFF7209B7); // For button background
   static const Color successGreen = Color(0xFF00F5D4); // Neon Green
   static const Color dangerRed = Color(0xFFFF2E63); // Neon Red
   static const Color warningOrange = Color(0xFFFF9F1C);

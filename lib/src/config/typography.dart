@@ -44,6 +44,12 @@ class AppTypography {
         fontWeight: FontWeight.w500,
       );
 
+  static TextStyle get titleMedium => GoogleFonts.outfit(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.15,
+      );
+
   // Body (Content)
   static TextStyle get bodyLarge => GoogleFonts.manrope(
         fontSize: 16,
@@ -60,6 +66,13 @@ class AppTypography {
   static TextStyle get bodySmall => GoogleFonts.manrope(
         fontSize: 12,
         fontWeight: FontWeight.normal,
+        letterSpacing: 0.4,
+      );
+
+  static TextStyle get caption => GoogleFonts.manrope(
+        fontSize: 12,
+        fontWeight: FontWeight.normal,
+        color: Colors.grey,
         letterSpacing: 0.4,
       );
 

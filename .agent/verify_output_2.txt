@@ -1,0 +1,12 @@
+Logging in...
+Login Successful. Token obtained.
+
+--- Fetching Hold/Cancelled Items ---
+Found 4 hold/cancelled items.
+First Item Job Order: ITLNBC.C20250317001
+Status: Held
+
+--- Fetching Quotations ---
+Found 1 quotations.
+First Quote No: testing
+Client: testing
